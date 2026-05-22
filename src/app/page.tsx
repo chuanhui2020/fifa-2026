@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { matches, groups, stages, MatchStage } from "@/data/matches";
+import { matches, groups, stages } from "@/data/matches";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
+import { TimezoneSelector } from "@/components/TimezoneSelector";
+import { useTimezone } from "@/components/TimezoneProvider";
+import { convertMatchTime } from "@/lib/timezone";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
@@ -14,20 +17,10 @@ function formatDate(dateStr: string): string {
   return `${month}月${day}日 ${weekday}`;
 }
 
-function groupMatchesByDate(matchList: typeof matches) {
-  const grouped: Record<string, typeof matches> = {};
-  for (const match of matchList) {
-    if (!grouped[match.date]) {
-      grouped[match.date] = [];
-    }
-    grouped[match.date].push(match);
-  }
-  return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-}
-
 export default function SchedulePage() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const { resolvedTimezone } = useTimezone();
 
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
@@ -37,7 +30,17 @@ export default function SchedulePage() {
     });
   }, [selectedGroup, selectedStage]);
 
-  const groupedMatches = useMemo(() => groupMatchesByDate(filteredMatches), [filteredMatches]);
+  const groupedMatches = useMemo(() => {
+    const grouped: Record<string, { match: typeof matches[number]; convertedTime: string }[]> = {};
+    for (const match of filteredMatches) {
+      const converted = convertMatchTime(match.date, match.time, resolvedTimezone);
+      if (!grouped[converted.date]) {
+        grouped[converted.date] = [];
+      }
+      grouped[converted.date].push({ match, convertedTime: converted.time });
+    }
+    return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredMatches, resolvedTimezone]);
 
   const stageOptions = stages.map((s) => s.label);
   const stageKeyFromLabel = (label: string | null): string | null => {
@@ -51,7 +54,7 @@ export default function SchedulePage() {
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-semibold tracking-tight">FIFA 2026</h1>
-            <span className="text-xs text-muted">{matches.length} 场比赛</span>
+            <TimezoneSelector />
           </div>
           <div className="space-y-2">
             <FilterChips
@@ -96,8 +99,8 @@ export default function SchedulePage() {
                   {formatDate(date)}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {dateMatches.map((match) => (
-                    <MatchCard key={match.id} match={match} />
+                  {dateMatches.map(({ match, convertedTime }) => (
+                    <MatchCard key={match.id} match={match} displayTime={convertedTime} />
                   ))}
                 </div>
               </section>

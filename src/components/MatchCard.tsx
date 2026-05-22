@@ -57,7 +57,7 @@ function StageLabel({ match }: { match: Match }) {
   return <span className="text-xs text-highlight font-medium">{stageLabels[match.stage] || match.stage}</span>;
 }
 
-export function MatchCard({ match }: { match: Match }) {
+export function MatchCard({ match, displayTime }: { match: Match; displayTime?: string }) {
   const homeWins = match.status === "finished" && match.homeScore !== undefined && match.awayScore !== undefined && match.homeScore > match.awayScore;
   const awayWins = match.status === "finished" && match.homeScore !== undefined && match.awayScore !== undefined && match.awayScore > match.homeScore;
 
@@ -83,7 +83,7 @@ export function MatchCard({ match }: { match: Match }) {
 
       <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
         <span className="text-xs text-muted truncate max-w-[60%]">{match.venue}, {match.city}</span>
-        <span className="text-xs text-muted tabular-nums font-medium">{match.time}</span>
+        <span className="text-xs text-muted tabular-nums font-medium">{displayTime || match.time}</span>
       </div>
     </article>
   );
