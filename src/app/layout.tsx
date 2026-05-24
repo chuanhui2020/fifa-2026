@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import { TimezoneProvider } from "@/components/TimezoneProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,10 +16,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FIFA 2026 赛程",
-  description: "FIFA 2026 世界杯赛程表 - 比赛时间、场馆、比分一览",
+  title: "FIFA 2026 世界杯赛程",
+  description: "FIFA 2026 世界杯赛程表 - 比赛时间、场馆、比分一览（北京时间）",
   openGraph: {
-    title: "FIFA 2026 赛程",
+    title: "FIFA 2026 世界杯赛程",
     description: "FIFA 2026 世界杯赛程表",
     type: "website",
   },
@@ -34,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <TimezoneProvider>{children}</TimezoneProvider>
+        {children}
       </body>
     </html>
   );

@@ -1,10 +1,11 @@
 "use client";
 
 import { Match } from "@/data/matches";
+import { getTeamDisplay } from "@/data/teams";
 
 function StatusBadge({ status }: { status: Match["status"] }) {
   const config = {
-    live: { label: "LIVE", className: "bg-live/20 text-live" },
+    live: { label: "进行中", className: "bg-live/20 text-live" },
     upcoming: { label: "即将开始", className: "bg-upcoming/20 text-upcoming" },
     finished: { label: "已结束", className: "bg-finished/20 text-finished" },
   };
@@ -30,10 +31,11 @@ function TeamRow({
   score?: number;
   isWinner: boolean;
 }) {
+  const { cn, flag } = getTeamDisplay(name);
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className={`text-sm truncate ${isWinner ? "font-semibold text-foreground" : "text-foreground"}`}>
-        {name}
+        {flag && <span className="mr-1.5">{flag}</span>}{cn}
       </span>
       {score !== undefined && (
         <span className={`text-sm tabular-nums font-semibold ml-2 ${isWinner ? "text-foreground" : "text-muted"}`}>
@@ -45,7 +47,7 @@ function TeamRow({
 }
 
 function StageLabel({ match }: { match: Match }) {
-  if (match.group) return <span className="text-xs text-muted font-medium">Group {match.group}</span>;
+  if (match.group) return <span className="text-xs text-muted font-medium">{match.group}组</span>;
   const stageLabels: Record<string, string> = {
     round32: "32强",
     round16: "16强",

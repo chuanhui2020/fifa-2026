@@ -4,9 +4,7 @@ import { useState, useMemo } from "react";
 import { matches, groups, stages } from "@/data/matches";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
-import { TimezoneSelector } from "@/components/TimezoneSelector";
-import { useTimezone } from "@/components/TimezoneProvider";
-import { convertMatchTime } from "@/lib/timezone";
+import { convertMatchTimeToBJ } from "@/lib/timezone";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
@@ -20,7 +18,6 @@ function formatDate(dateStr: string): string {
 export default function SchedulePage() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
-  const { resolvedTimezone } = useTimezone();
 
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
@@ -33,14 +30,14 @@ export default function SchedulePage() {
   const groupedMatches = useMemo(() => {
     const grouped: Record<string, { match: typeof matches[number]; convertedTime: string }[]> = {};
     for (const match of filteredMatches) {
-      const converted = convertMatchTime(match.date, match.time, resolvedTimezone);
+      const converted = convertMatchTimeToBJ(match.date, match.time);
       if (!grouped[converted.date]) {
         grouped[converted.date] = [];
       }
       grouped[converted.date].push({ match, convertedTime: converted.time });
     }
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredMatches, resolvedTimezone]);
+  }, [filteredMatches]);
 
   const stageOptions = stages.map((s) => s.label);
   const stageKeyFromLabel = (label: string | null): string | null => {
@@ -53,8 +50,8 @@ export default function SchedulePage() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border safe-area-top">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-semibold tracking-tight">FIFA 2026</h1>
-            <TimezoneSelector />
+            <h1 className="text-lg font-semibold tracking-tight">FIFA 2026 世界杯</h1>
+            <span className="text-xs text-muted">北京时间</span>
           </div>
           <div className="space-y-2">
             <FilterChips
@@ -110,7 +107,7 @@ export default function SchedulePage() {
       </main>
 
       <footer className="border-t border-border py-4 text-center safe-area-bottom">
-        <p className="text-xs text-muted">FIFA World Cup 2026 · USA / Mexico / Canada</p>
+        <p className="text-xs text-muted">FIFA 2026 世界杯 · 美国 / 墨西哥 / 加拿大</p>
       </footer>
     </div>
   );
