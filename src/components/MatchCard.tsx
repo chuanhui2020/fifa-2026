@@ -2,6 +2,7 @@
 
 import { Match } from "@/data/matches";
 import { getTeamDisplay } from "@/data/teams";
+import { getVenueDisplay, getCityDisplay } from "@/data/venues";
 
 function StatusBadge({ status }: { status: Match["status"] }) {
   const config = {
@@ -84,7 +85,7 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
       </div>
 
       <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-        <span className="text-xs text-muted truncate max-w-[60%]">{match.venue}, {match.city}</span>
+        <span className="text-xs text-muted truncate max-w-[60%]">{getVenueDisplay(match.venue)}, {getCityDisplay(match.city)}</span>
         <span className="text-xs text-muted tabular-nums font-medium">{displayTime || match.time}</span>
       </div>
     </article>
