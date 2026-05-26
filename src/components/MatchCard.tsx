@@ -32,11 +32,21 @@ function TeamRow({
   score?: number;
   isWinner: boolean;
 }) {
-  const { cn, flag } = getTeamDisplay(name);
+  const { cn, code } = getTeamDisplay(name);
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className={`text-sm truncate ${isWinner ? "font-semibold text-foreground" : "text-foreground"}`}>
-        {flag && <span className="mr-1.5">{flag}</span>}{cn}
+      <span className={`flex items-center text-sm truncate ${isWinner ? "font-semibold text-foreground" : "text-foreground"}`}>
+        {code && (
+          <img
+            src={`https://flagcdn.com/${code}.svg`}
+            width="20"
+            height="15"
+            alt={cn}
+            className="mr-1.5 shrink-0 rounded-[2px] ring-1 ring-white/20 object-cover"
+            style={{ width: 20, height: 15 }}
+          />
+        )}
+        {cn}
       </span>
       {score !== undefined && (
         <span className={`text-sm tabular-nums font-semibold ml-2 ${isWinner ? "text-foreground" : "text-muted"}`}>
