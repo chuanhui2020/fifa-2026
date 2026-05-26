@@ -3,6 +3,7 @@
 import { Match } from "@/data/matches";
 import { getTeamDisplay } from "@/data/teams";
 import { getVenueDisplay, getCityDisplay } from "@/data/venues";
+import { PredictionCard } from "./PredictionCard";
 
 function StatusBadge({ status }: { status: Match["status"] }) {
   const config = {
@@ -98,6 +99,10 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
         <span className="text-xs text-muted truncate max-w-[60%]">{getVenueDisplay(match.venue)}, {getCityDisplay(match.city)}</span>
         <span className="text-xs text-muted tabular-nums font-medium">{displayTime || match.time}</span>
       </div>
+
+      {match.status === "upcoming" && (
+        <PredictionCard matchId={String(match.id)} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      )}
     </article>
   );
 }

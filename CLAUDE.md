@@ -31,7 +31,7 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - [ ] 收藏/关注比赛功能
 - [ ] Cloudflare Pages 部署配置
 - [ ] 实时比分更新（Cloudflare Cron Trigger）
-- [ ] Agent 系统（概率计算、预测）
+- [x] Agent 系统（概率计算、预测）— 骨架已完成
 - [ ] 分享功能（微信分享卡片 meta）
 
 ## 数据来源
@@ -45,14 +45,40 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 ```
 src/
 ├── app/
-│   ├── globals.css      # 深色主题变量 + 动画 + 微信适配
-│   ├── layout.tsx       # 全局布局 + meta + viewport
-│   └── page.tsx         # 主赛程页面（筛选 + 列表）
+│   ├── globals.css          # 深色主题变量 + 动画 + 微信适配
+│   ├── layout.tsx           # 全局布局 + meta + viewport
+│   ├── page.tsx             # 主赛程页面（筛选 + 列表）
+│   └── api/predict/route.ts # 预测 API 端点
+├── agents/
+│   ├── types.ts             # 统一类型定义
+│   ├── llm.ts               # DeepSeek 客户端配置
+│   ├── orchestrator.ts      # 编排层（并行采集 + 串行归因）
+│   ├── prompts/             # Prompt 模板文件
+│   │   ├── loader.ts        # 模板加载 + 变量替换
+│   │   ├── elo.system.md
+│   │   ├── elo.user.md
+│   │   ├── form.system.md
+│   │   ├── form.user.md
+│   │   ├── market.system.md
+│   │   ├── market.user.md
+│   │   ├── squad.system.md
+│   │   ├── squad.user.md
+│   │   ├── attribution.system.md
+│   │   └── attribution.user.md
+│   ├── collectors/          # 采集 Agent（DeepSeek-V4-Flash）
+│   │   ├── types.ts
+│   │   ├── elo.ts
+│   │   ├── form.ts
+│   │   ├── market.ts
+│   │   └── squad.ts
+│   └── attribution/         # 归因 Agent（DeepSeek-V4-Pro）
+│       └── agent.ts
 ├── components/
-│   ├── FilterChips.tsx  # 横滑筛选组件
-│   └── MatchCard.tsx    # 比赛卡片组件
+│   ├── FilterChips.tsx      # 横滑筛选组件
+│   ├── MatchCard.tsx        # 比赛卡片组件
+│   └── PredictionCard.tsx   # 预测结果展示组件
 └── data/
-    └── matches.ts       # 完整赛程数据（104 场）
+    └── matches.ts           # 完整赛程数据（104 场）
 ```
 
 ## 开发命令
