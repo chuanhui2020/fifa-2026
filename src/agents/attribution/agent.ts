@@ -1,7 +1,10 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import type { CollectorOutput, PredictionResult } from "../types";
+import { isTextContent } from "../types";
 import { getProModel, getApiKey } from "../llm";
 import { loadPrompt } from "../prompts/loader";
+import { parseLLMJson } from "../parse-json";
+import { validatePredictionResult } from "../validate";
 
 export async function runAttribution(
   matchId: string,
@@ -35,19 +38,11 @@ export async function runAttribution(
     throw new Error("AttributionAgent: no assistant response");
   }
 
-  const textContent = lastMessage.content.find((c: any) => c.type === "text");
-  if (!textContent || textContent.type !== "text") {
+  const textContent = lastMessage.content.find(isTextContent);
+  if (!textContent) {
     throw new Error("AttributionAgent: empty response");
   }
 
-  const parsed = JSON.parse(textContent.text);
-
-  return {
-    matchId,
-    prediction: parsed.prediction,
-    attribution: parsed.attribution ?? [],
-    summary: parsed.summary ?? "",
-    confidence: parsed.confidence ?? 0.5,
-    generatedAt: Date.now(),
-  };
+  const parsed = parseLLMJson(textContent.text);
+  return validatePredictionResult(parsed, matchId);
 }

@@ -40,33 +40,45 @@ export const webSearchTool: AgentTool<typeof WebSearchParams> = {
   ): Promise<AgentToolResult<TavilyResponse>> {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) {
-      throw new Error("TAVILY_API_KEY not configured");
+      return {
+        content: [{ type: "text", text: "Web search unavailable (no API key configured). Please rely on your training knowledge to provide analysis." }],
+        details: { results: [] },
+      };
     }
 
-    const response = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query: params.query,
-        search_depth: params.search_depth || "basic",
-        max_results: params.max_results || 5,
-        include_answer: true,
-      }),
-    });
+    try {
+      const response = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query: params.query,
+          search_depth: params.search_depth || "basic",
+          max_results: params.max_results || 5,
+          include_answer: true,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error(`Tavily search failed: ${response.status}`);
+      if (!response.ok) {
+        return {
+          content: [{ type: "text", text: `Web search failed (HTTP ${response.status}). Please rely on your training knowledge to provide analysis.` }],
+          details: { results: [] },
+        };
+      }
+
+      const data: TavilyResponse = await response.json();
+      const text = formatResults(data);
+
+      return {
+        content: [{ type: "text", text }],
+        details: data,
+      };
+    } catch {
+      return {
+        content: [{ type: "text", text: "Web search failed (network error). Please rely on your training knowledge to provide analysis." }],
+        details: { results: [] },
+      };
     }
-
-    const data: TavilyResponse = await response.json();
-
-    const text = formatResults(data);
-
-    return {
-      content: [{ type: "text", text }],
-      details: data,
-    };
   },
 };
 

@@ -14,7 +14,7 @@ export async function predict(
   homeTeam: string,
   awayTeam: string
 ): Promise<PredictionResult> {
-  const cached = getCached(matchId);
+  const cached = await getCached(matchId);
   if (cached) return cached;
 
   const results = await Promise.allSettled(
@@ -33,6 +33,6 @@ export async function predict(
   }
 
   const prediction = await runAttribution(matchId, homeTeam, awayTeam, validResults);
-  setCache(matchId, prediction);
+  await setCache(matchId, prediction);
   return prediction;
 }

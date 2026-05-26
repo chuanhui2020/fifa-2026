@@ -34,3 +34,17 @@ export interface PredictionResult {
   confidence: number;
   generatedAt: number;
 }
+
+export interface TextContent {
+  type: "text";
+  text: string;
+}
+
+export function isTextContent(c: unknown): c is TextContent {
+  return (
+    typeof c === "object" &&
+    c !== null &&
+    (c as Record<string, unknown>).type === "text" &&
+    typeof (c as Record<string, unknown>).text === "string"
+  );
+}

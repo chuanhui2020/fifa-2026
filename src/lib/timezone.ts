@@ -11,16 +11,15 @@ export function convertMatchTimeToBJ(
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
   });
 
   const parts = formatter.formatToParts(etDate);
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value || "";
 
-  const newDate = `${get("year")}-${get("month")}-${get("day")}`;
-  const newHour = get("hour") === "24" ? "00" : get("hour");
-  const newTime = `${newHour}:${get("minute")}`;
-
-  return { date: newDate, time: newTime };
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
 }

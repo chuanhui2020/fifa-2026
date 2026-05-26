@@ -1,8 +1,11 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import type { CollectorOutput } from "../types";
+import { isTextContent } from "../types";
 import { getFlashModel, getApiKey } from "../llm";
 import { loadPrompt } from "../prompts/loader";
 import { webSearchTool } from "../tools/web-search";
+import { parseLLMJson } from "../parse-json";
+import { validateCollectorOutput } from "../validate";
 
 export async function runCollectorAgent(
   agentId: string,
@@ -34,19 +37,11 @@ export async function runCollectorAgent(
     throw new Error(`${agentId}Agent: no assistant response`);
   }
 
-  const textContent = lastMessage.content.find((c: any) => c.type === "text");
-  if (!textContent || textContent.type !== "text") {
+  const textContent = lastMessage.content.find(isTextContent);
+  if (!textContent) {
     throw new Error(`${agentId}Agent: empty response`);
   }
 
-  const parsed = JSON.parse(textContent.text);
-
-  return {
-    agentId,
-    matchId,
-    timestamp: Date.now(),
-    confidence: parsed.confidence ?? defaultConfidence,
-    factors: parsed.factors ?? [],
-    sources: parsed.sources ?? [],
-  };
+  const parsed = parseLLMJson(textContent.text);
+  return validateCollectorOutput(parsed, agentId, matchId, defaultConfidence);
 }

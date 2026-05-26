@@ -5,20 +5,50 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-const cache = new Map<string, CacheEntry>();
+const memCache = new Map<string, CacheEntry>();
+const DEFAULT_TTL = 30 * 60 * 1000;
 
-const DEFAULT_TTL = 30 * 60 * 1000; // 30 minutes
-
-export function getCached(matchId: string): PredictionResult | null {
-  const entry = cache.get(matchId);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cache.delete(matchId);
-    return null;
-  }
-  return entry.result;
+export interface KVStore {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
 }
 
-export function setCache(matchId: string, result: PredictionResult, ttl = DEFAULT_TTL): void {
-  cache.set(matchId, { result, expiresAt: Date.now() + ttl });
+let kvStore: KVStore | null = null;
+
+export function setKVStore(kv: KVStore): void {
+  kvStore = kv;
+}
+
+export async function getCached(matchId: string): Promise<PredictionResult | null> {
+  const entry = memCache.get(matchId);
+  if (entry && Date.now() <= entry.expiresAt) return entry.result;
+  if (entry) memCache.delete(matchId);
+
+  if (kvStore) {
+    const raw = await kvStore.get(`prediction:${matchId}`);
+    if (raw) {
+      try {
+        const result: PredictionResult = JSON.parse(raw);
+        memCache.set(matchId, { result, expiresAt: Date.now() + DEFAULT_TTL });
+        return result;
+      } catch {
+        // corrupted cache entry, ignore
+      }
+    }
+  }
+
+  return null;
+}
+
+export async function setCache(
+  matchId: string,
+  result: PredictionResult,
+  ttl = DEFAULT_TTL
+): Promise<void> {
+  memCache.set(matchId, { result, expiresAt: Date.now() + ttl });
+  if (kvStore) {
+    await kvStore.put(`prediction:${matchId}`, JSON.stringify(result), {
+      expirationTtl: Math.ceil(ttl / 1000),
+    });
+  }
 }
