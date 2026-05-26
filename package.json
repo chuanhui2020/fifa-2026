@@ -7,7 +7,10 @@
     "build": "next build",
     "deploy": "next build && wrangler pages deploy out --project-name=fifa-2026 --commit-dirty=true",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "worker:dev": "cd worker && npx wrangler dev",
+    "worker:deploy": "cd worker && npx wrangler deploy",
+    "deploy:all": "npm run deploy && npm run worker:deploy"
   },
   "dependencies": {
     "next": "16.2.6",

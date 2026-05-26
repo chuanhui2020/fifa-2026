@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { matches, groups, stages } from "@/data/matches";
+import { groups, stages } from "@/data/matches";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
+import { useMatches } from "@/hooks/useMatches";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
@@ -16,6 +17,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function SchedulePage() {
+  const { matches, lastUpdated, isLive } = useMatches();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
 
@@ -25,7 +27,7 @@ export default function SchedulePage() {
       if (selectedStage && match.stage !== selectedStage) return false;
       return true;
     });
-  }, [selectedGroup, selectedStage]);
+  }, [matches, selectedGroup, selectedStage]);
 
   const groupedMatches = useMemo(() => {
     const grouped: Record<string, { match: typeof matches[number]; convertedTime: string }[]> = {};
@@ -50,7 +52,15 @@ export default function SchedulePage() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border safe-area-top">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-semibold tracking-tight">FIFA 2026 世界杯</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold tracking-tight">FIFA 2026 世界杯</h1>
+              {isLive && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-live/20 text-live text-xs font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-live animate-pulse" />
+                  直播中
+                </span>
+              )}
+            </div>
             <span className="text-xs text-muted">北京时间</span>
           </div>
           <div className="space-y-2">
@@ -107,7 +117,12 @@ export default function SchedulePage() {
       </main>
 
       <footer className="border-t border-border py-4 text-center safe-area-bottom">
-        <p className="text-xs text-muted">FIFA 2026 世界杯 · 美国 / 墨西哥 / 加拿大</p>
+        <p className="text-xs text-muted">
+          FIFA 2026 世界杯 · 美国 / 墨西哥 / 加拿大
+          {lastUpdated && (
+            <span className="ml-2">· 更新于 {new Date(lastUpdated).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" })}</span>
+          )}
+        </p>
       </footer>
     </div>
   );
