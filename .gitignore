@@ -43,3 +43,6 @@ worker/node_modules/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code
+.claude/settings.local.json
