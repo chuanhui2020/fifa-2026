@@ -33,6 +33,44 @@ export interface PredictionResult {
   summary: string;
   confidence: number;
   generatedAt: number;
+  sources: string[];
+  missingAgents: string[];
+  log?: PredictionLog;
+}
+
+export interface MatchContext {
+  date: string;
+  time: string;
+  venue: string;
+  city: string;
+  stage: string;
+  group?: string;
+  isNeutralVenue: boolean;
+}
+
+export interface SearchMetrics {
+  queriesCount: number;
+  resultsCount: number;
+  queries: string[];
+  sourceUrls: string[];
+}
+
+export interface PredictionLog {
+  matchId: string;
+  startedAt: number;
+  completedAt: number;
+  collectors: {
+    agentId: string;
+    durationMs: number;
+    status: "success" | "failed" | "timeout";
+    factorsCount: number;
+    sourcesCount: number;
+    searchMetrics?: SearchMetrics;
+    error?: string;
+  }[];
+  attributionDurationMs: number;
+  totalDurationMs: number;
+  validCollectorCount: number;
 }
 
 export interface TextContent {

@@ -27,10 +27,29 @@ interface TavilyResponse {
   answer?: string;
 }
 
+export interface SearchRecord {
+  query: string;
+  resultCount: number;
+  sourceUrls: string[];
+  success: boolean;
+}
+
+let searchRecords: SearchRecord[] = [];
+
+export function getSearchRecords(): SearchRecord[] {
+  return searchRecords;
+}
+
+export function resetSearchRecords(): void {
+  searchRecords = [];
+}
+
+const SEARCH_TIMEOUT_MS = 10_000;
+
 export const webSearchTool: AgentTool<typeof WebSearchParams> = {
   name: "web_search",
   description:
-    "Search the web for current information. Use this to find real-time data like team rankings, recent match results, betting odds, injury reports, and other up-to-date football information.",
+    "Search the web for current information. Use this to find real-time data like team rankings, recent match results, betting odds, injury reports, and other up-to-date football information. If search fails or returns no results, you MUST report lower confidence and note the data gap in your response.",
   parameters: WebSearchParams,
   label: "Web Search",
 
@@ -40,13 +59,22 @@ export const webSearchTool: AgentTool<typeof WebSearchParams> = {
   ): Promise<AgentToolResult<TavilyResponse>> {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) {
+      searchRecords.push({
+        query: params.query,
+        resultCount: 0,
+        sourceUrls: [],
+        success: false,
+      });
       return {
-        content: [{ type: "text", text: "Web search unavailable (no API key configured). Please rely on your training knowledge to provide analysis." }],
+        content: [{ type: "text", text: "Web search unavailable (no API key). You MUST set confidence to 0.2 or lower and clearly state that no real-time data was available. Do NOT invent or hallucinate data." }],
         details: { results: [] },
       };
     }
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+
       const response = await fetch("https://api.tavily.com/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -57,25 +85,56 @@ export const webSearchTool: AgentTool<typeof WebSearchParams> = {
           max_results: params.max_results || 5,
           include_answer: true,
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeout);
+
       if (!response.ok) {
+        searchRecords.push({
+          query: params.query,
+          resultCount: 0,
+          sourceUrls: [],
+          success: false,
+        });
         return {
-          content: [{ type: "text", text: `Web search failed (HTTP ${response.status}). Please rely on your training knowledge to provide analysis.` }],
+          content: [{ type: "text", text: `Web search failed (HTTP ${response.status}). You MUST set confidence to 0.3 or lower and note this data gap. Do NOT invent data.` }],
           details: { results: [] },
         };
       }
 
       const data: TavilyResponse = await response.json();
-      const text = formatResults(data);
+      const sourceUrls = data.results.map((r) => r.url);
 
+      searchRecords.push({
+        query: params.query,
+        resultCount: data.results.length,
+        sourceUrls,
+        success: data.results.length > 0,
+      });
+
+      if (data.results.length === 0) {
+        return {
+          content: [{ type: "text", text: `Search for "${params.query}" returned no results. You MUST set confidence to 0.3 or lower and note this data gap.` }],
+          details: data,
+        };
+      }
+
+      const text = formatResults(data);
       return {
         content: [{ type: "text", text }],
         details: data,
       };
-    } catch {
+    } catch (e) {
+      const isTimeout = e instanceof Error && e.name === "AbortError";
+      searchRecords.push({
+        query: params.query,
+        resultCount: 0,
+        sourceUrls: [],
+        success: false,
+      });
       return {
-        content: [{ type: "text", text: "Web search failed (network error). Please rely on your training knowledge to provide analysis." }],
+        content: [{ type: "text", text: `Web search failed (${isTimeout ? "timeout" : "network error"}). You MUST set confidence to 0.3 or lower and note this data gap. Do NOT invent data.` }],
         details: { results: [] },
       };
     }

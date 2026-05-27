@@ -20,7 +20,7 @@ export function loadPrompt(
   const raw = PROMPT_MAP[name];
   if (!raw) throw new Error(`Unknown prompt: ${name}`);
   return Object.entries(vars).reduce(
-    (text, [key, value]) => text.replaceAll(`{{${key}}}`, value),
+    (text, [key, value]) => text.replaceAll(`{{${key}}}`, value ?? ""),
     raw
   );
 }

@@ -1,5 +1,5 @@
-import { predict } from "../src/agents/orchestrator";
-import { setKVStore } from "../src/agents/cache";
+import { predict } from "../../src/agents/orchestrator";
+import { setKVStore } from "../../src/agents/cache";
 
 interface Env {
   FIFA_MATCHES: KVNamespace;

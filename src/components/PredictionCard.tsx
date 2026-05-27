@@ -112,6 +112,70 @@ function LoadingSkeleton() {
   );
 }
 
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+const AGENT_NAMES: Record<string, string> = {
+  elo: "排名",
+  form: "近况",
+  market: "赔率",
+  squad: "阵容",
+};
+
+function MetaInfo({ result }: { result: PredictionResult }) {
+  const { missingAgents, sources, generatedAt, log } = result;
+
+  return (
+    <div className="mt-3 pt-2 border-t border-border/30 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted">
+          生成于 {formatTime(generatedAt)}
+          {log && ` · ${(log.totalDurationMs / 1000).toFixed(1)}s`}
+        </span>
+        {missingAgents.length > 0 && (
+          <span className="text-xs text-amber-400/80">
+            缺失: {missingAgents.map((a) => AGENT_NAMES[a] || a).join("、")}
+          </span>
+        )}
+      </div>
+
+      {sources.length > 0 && (
+        <details className="group">
+          <summary className="text-xs text-muted cursor-pointer hover:text-foreground/70 transition-colors duration-150 list-none flex items-center gap-1">
+            <svg
+              className="w-3 h-3 transition-transform duration-200 group-open:rotate-90"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+            </svg>
+            数据来源 ({sources.length})
+          </summary>
+          <ul className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+            {sources.map((url, i) => (
+              <li key={i} className="text-xs text-highlight/70 truncate">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-highlight transition-colors duration-150"
+                >
+                  {new URL(url).hostname.replace("www.", "")}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function PredictionCard({
   matchId,
   homeTeam,
@@ -192,15 +256,22 @@ export function PredictionCard({
     );
   }
 
-  const { prediction, attribution, summary, confidence } = result!;
+  const { prediction, attribution, summary, confidence, missingAgents } = result!;
 
   return (
     <div className="mt-3 pt-3 border-t border-border">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-foreground">AI 预测</span>
-        <span className="text-xs text-muted tabular-nums">
-          置信度 {(confidence * 100).toFixed(0)}%
-        </span>
+        <div className="flex items-center gap-2">
+          {missingAgents.length > 0 && (
+            <span className="text-xs text-amber-400/70" title={`缺失数据源: ${missingAgents.join(", ")}`}>
+              ⚠ 部分数据缺失
+            </span>
+          )}
+          <span className="text-xs text-muted tabular-nums">
+            置信度 {(confidence * 100).toFixed(0)}%
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between text-sm tabular-nums mb-1.5">
@@ -245,6 +316,8 @@ export function PredictionCard({
           </div>
         </details>
       )}
+
+      <MetaInfo result={result!} />
     </div>
   );
 }
