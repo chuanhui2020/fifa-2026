@@ -44,7 +44,8 @@ function TeamRow({
             height="15"
             alt={cn}
             className="mr-1.5 shrink-0 rounded-[2px] ring-1 ring-white/20 object-cover"
-            style={{ width: 20, height: 15 }}
+            style={{ width: 20, height: 15, aspectRatio: "4/3" }}
+            loading="lazy"
           />
         )}
         {cn}
@@ -83,7 +84,7 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
 
   return (
     <article
-      className={`bg-card border border-border rounded-xl p-4 border-l-[3px] ${borderColor} transition-colors duration-200 hover:bg-card-hover`}
+      className={`bg-card border border-border rounded-xl p-4 border-l-[3px] ${borderColor} transition-colors duration-200 active:bg-card-hover hover:bg-card-hover content-visibility-auto`}
     >
       <div className="flex items-center justify-between mb-3">
         <StatusBadge status={match.status} />

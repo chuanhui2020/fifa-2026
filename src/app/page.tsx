@@ -50,7 +50,7 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border safe-area-top">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
@@ -67,7 +67,7 @@ export default function SchedulePage() {
             {isAdmin && (
               <button
                 onClick={logout}
-                className="text-xs text-muted hover:text-foreground ml-2 px-2 py-1 rounded-full border border-border hover:border-highlight/50 transition-all duration-150"
+                className="text-xs text-muted hover:text-foreground ml-2 px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150"
               >
                 退出管理
               </button>
@@ -103,7 +103,7 @@ export default function SchedulePage() {
             <p className="text-muted text-sm">无匹配比赛</p>
             <button
               onClick={() => { setSelectedGroup(null); setSelectedStage(null); }}
-              className="mt-3 text-upcoming text-sm font-medium cursor-pointer hover:underline"
+              className="mt-3 text-upcoming text-sm font-medium cursor-pointer hover:underline py-2 px-4 min-h-[44px]"
             >
               清除筛选
             </button>
@@ -112,7 +112,7 @@ export default function SchedulePage() {
           <div className="space-y-8">
             {groupedMatches.map(([date, dateMatches]) => (
               <section key={date}>
-                <h2 className="text-sm font-medium text-muted mb-3 sticky top-[108px] bg-background/95 backdrop-blur-sm py-2 z-10">
+                <h2 className="text-sm font-medium text-muted mb-3 py-2">
                   {formatDate(date)}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
