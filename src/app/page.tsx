@@ -6,6 +6,7 @@ import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
+import { useAdmin } from "@/contexts/AdminContext";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
@@ -18,6 +19,7 @@ function formatDate(dateStr: string): string {
 
 export default function SchedulePage() {
   const { matches, lastUpdated, isLive } = useMatches();
+  const { isAdmin, logout } = useAdmin();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
 
@@ -62,6 +64,14 @@ export default function SchedulePage() {
               )}
             </div>
             <span className="text-xs text-muted">北京时间</span>
+            {isAdmin && (
+              <button
+                onClick={logout}
+                className="text-xs text-muted hover:text-foreground ml-2 px-2 py-1 rounded-full border border-border hover:border-highlight/50 transition-all duration-150"
+              >
+                退出管理
+              </button>
+            )}
           </div>
           <div className="space-y-2">
             <FilterChips

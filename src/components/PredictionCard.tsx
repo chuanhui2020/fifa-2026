@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { PredictionResult, Attribution } from "@/agents/types";
+import { useAdmin } from "@/contexts/AdminContext";
 
 function ProbabilityBar({ homeWin, draw, awayWin, homeTeam, awayTeam }: {
   homeWin: number;
@@ -185,9 +186,12 @@ export function PredictionCard({
   homeTeam: string;
   awayTeam: string;
 }) {
+  const { isAdmin, token } = useAdmin();
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!isAdmin) return null;
 
   async function handlePredict() {
     setLoading(true);
@@ -196,7 +200,10 @@ export function PredictionCard({
     try {
       const res = await fetch("/api/predict", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({ matchId, homeTeam, awayTeam }),
       });
 

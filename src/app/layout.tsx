@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AdminProvider } from "@/contexts/AdminContext";
+import { AdminLoginModal } from "@/components/AdminLoginModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,7 +35,10 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+        <AdminProvider>
+          <AdminLoginModal />
+          {children}
+        </AdminProvider>
       </body>
     </html>
   );
