@@ -13,7 +13,7 @@ export function FilterChips({ label, options, selected, onSelect }: FilterChipsP
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1 pr-6" role="group" aria-label={label}>
         <button
           onClick={() => onSelect(null)}
-          className={`flex-shrink-0 px-3 min-w-[44px] min-h-[44px] py-2 rounded-full text-xs font-medium transition-colors duration-150 cursor-pointer text-center ${
+          className={`flex-shrink-0 px-4 min-h-[36px] py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer text-center ${
             selected === null
               ? "bg-upcoming text-white"
               : "bg-card text-muted border border-border active:bg-card-hover"
@@ -25,7 +25,7 @@ export function FilterChips({ label, options, selected, onSelect }: FilterChipsP
           <button
             key={option}
             onClick={() => onSelect(option === selected ? null : option)}
-            className={`flex-shrink-0 px-3 min-w-[44px] min-h-[44px] py-2 rounded-full text-xs font-medium transition-colors duration-150 cursor-pointer text-center ${
+            className={`flex-shrink-0 px-4 min-h-[36px] py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer text-center ${
               selected === option
                 ? "bg-upcoming text-white"
                 : "bg-card text-muted border border-border active:bg-card-hover"
