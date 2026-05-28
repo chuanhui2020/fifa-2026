@@ -95,9 +95,17 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
         <TeamRow name={match.awayTeam} score={match.awayScore} isWinner={awayWins} />
       </div>
 
-      <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-        <span className="text-xs text-muted truncate max-w-[60%]">{getVenueDisplay(match.venue)}, {getCityDisplay(match.city)}</span>
-        <span className="text-xs text-muted tabular-nums font-medium">{displayTime || match.time}</span>
+      <div className="mt-3 pt-3 border-t border-border flex items-start justify-between gap-2">
+        <div className="flex items-start gap-1.5 min-w-0">
+          <svg className="w-3.5 h-3.5 text-muted/60 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
+          </svg>
+          <div className="min-w-0">
+            <p className="text-xs text-foreground/70 truncate">{getVenueDisplay(match.venue)}</p>
+            <p className="text-[11px] text-muted/70 truncate">{getCityDisplay(match.city)}</p>
+          </div>
+        </div>
+        <span className="text-xs text-muted tabular-nums font-medium shrink-0">{displayTime || match.time}</span>
       </div>
 
       {match.status === "upcoming" && (
