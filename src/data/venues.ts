@@ -36,10 +36,31 @@ export const cityNames: Record<string, string> = {
   "Kansas City": "堪萨斯城",
 };
 
+const cityCountry: Record<string, string> = {
+  "Mexico City": "墨西哥",
+  "Guadalajara": "墨西哥",
+  "Monterrey": "墨西哥",
+  "Toronto": "加拿大",
+  "Vancouver": "加拿大",
+  "Santa Clara": "美国",
+  "East Rutherford": "美国",
+  "Foxborough": "美国",
+  "Inglewood": "美国",
+  "Houston": "美国",
+  "Philadelphia": "美国",
+  "Arlington": "美国",
+  "Atlanta": "美国",
+  "Miami Gardens": "美国",
+  "Seattle": "美国",
+  "Kansas City": "美国",
+};
+
 export function getVenueDisplay(venue: string): string {
   return venueNames[venue] || venue;
 }
 
 export function getCityDisplay(city: string): string {
-  return cityNames[city] || city;
+  const name = cityNames[city] || city;
+  const country = cityCountry[city];
+  return country ? `${name}, ${country}` : name;
 }
