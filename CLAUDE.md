@@ -40,6 +40,27 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - 时间为美东时间 (ET)
 - 淘汰赛对阵为占位符，赛事进行后需更新
 
+## 外部服务依赖
+
+| 服务 | 用途 | 环境变量 | 必须 | 费用 |
+|---|---|---|---|---|
+| the-odds-api.com | 赔率数据（market agent 主路径，确定性 devig） | `ODDS_API_KEY` | 否（无则回退 LLM） | 免费 500 次/月 |
+| eloratings.net | Elo 评分（elo agent 主路径，直连 World.tsv） | 无需 key | 否（无则回退 LLM） | 免费 |
+| DeepSeek API | LLM 推理（form/squad agent + attribution 归因） | `DEEPSEEK_API_KEY` | 是 | 按 token 计费 |
+| Tavily | 网页搜索（form/squad agent + 回退路径） | `TAVILY_API_KEY` | 是 | 免费 1000 次/月 |
+| Cloudflare KV | 缓存 + 校准数据持久化 | `FIFA_MATCHES`(binding) | 是 | Pages 免费额度内 |
+
+### AI 模型
+
+- **DeepSeek V4 Flash** — 采集 agent（elo/market 回退时、form/squad 始终使用）
+- **DeepSeek V4 Pro** — attribution 归因综合（最终概率 + 中文摘要）
+
+### 降级策略
+
+- the-odds-api 不可用 → market agent 回退到 LLM + Tavily 搜索赔率
+- eloratings.net 不可用 → elo agent 回退到 LLM + Tavily 搜索评分
+- 两个确定性源都挂 → 系统仍可运行，只是概率锚点退化为 LLM 输出（有幻觉风险）
+
 ## 项目结构
 
 ```
