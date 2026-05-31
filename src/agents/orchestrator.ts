@@ -134,6 +134,6 @@ export async function predict(
   };
 
   await setCache(matchId, finalResult);
-  recordPrediction(finalResult);
+  await recordPrediction(finalResult);
   return finalResult;
 }

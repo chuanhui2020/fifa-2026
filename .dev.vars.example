@@ -1,0 +1,9 @@
+# Cloudflare Pages Functions local dev secrets.
+# Copy to `.dev.vars` (gitignored) and fill in real values, then run:
+#   npm run build && npx wrangler pages dev out
+
+DEEPSEEK_API_KEY=
+TAVILY_API_KEY=
+ODDS_API_KEY=
+ADMIN_PASSWORD=
+ADMIN_SECRET=

@@ -13,6 +13,13 @@ export interface CollectorOutput {
   confidence: number;
   factors: Factor[];
   sources: string[];
+  /**
+   * Structured win/draw/away probabilities, when this collector can produce
+   * them deterministically (currently the market agent from devigged odds).
+   * Lets computeBaseProbability use a reliable anchor instead of string-matching
+   * factor names. Sums to ~1.
+   */
+  impliedProbability?: { homeWin: number; draw: number; awayWin: number };
 }
 
 export interface Attribution {
@@ -46,6 +53,12 @@ export interface MatchContext {
   stage: string;
   group?: string;
   isNeutralVenue: boolean;
+}
+
+const KNOCKOUT_STAGES = new Set(["round32", "round16", "quarter", "semi", "third", "final"]);
+
+export function isKnockoutStage(stage: string): boolean {
+  return KNOCKOUT_STAGES.has(stage);
 }
 
 export interface SearchMetrics {

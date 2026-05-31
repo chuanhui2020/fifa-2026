@@ -1,6 +1,6 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import type { CollectorOutput, PredictionResult, MatchContext } from "../types";
-import { isTextContent } from "../types";
+import { isTextContent, isKnockoutStage } from "../types";
 import { getProModel, getApiKey } from "../llm";
 import { loadPrompt } from "../prompts/loader";
 import { parseLLMJson } from "../parse-json";
@@ -71,8 +71,12 @@ async function executeAttribution(
     ? `\nMatch Context:\n- Date: ${context.date} ${context.time} ET\n- Venue: ${context.venue}, ${context.city}\n- Stage: ${context.stage}${context.group ? ` (Group ${context.group})` : ""}\n- Neutral venue: ${context.isNeutralVenue ? "Yes (World Cup hosted in US/Canada/Mexico)" : "No (host nation playing)"}\n`
     : "";
 
-  const baseProbability = computeBaseProbability(collectorResults);
-  const baseInfo = `\nBase Probability (from ${baseProbability.source} data):\n- Home win: ${(baseProbability.homeWin * 100).toFixed(1)}%\n- Draw: ${(baseProbability.draw * 100).toFixed(1)}%\n- Away win: ${(baseProbability.awayWin * 100).toFixed(1)}%\n\nUse this as your starting point. You may adjust by up to ±15% per outcome based on factors not captured in the base probability. Explain any significant deviations.\n`;
+  const isKnockout = context?.stage ? isKnockoutStage(context.stage) : false;
+
+  const baseProbability = computeBaseProbability(collectorResults, context?.stage);
+  const baseInfo = isKnockout
+    ? `\nBase Probability (from ${baseProbability.source} data, knockout stage — no draw):\n- Home advances: ${(baseProbability.homeWin * 100).toFixed(1)}%\n- Away advances: ${(baseProbability.awayWin * 100).toFixed(1)}%\n\nThis is a knockout match — extra time and penalties decide the winner if needed. Set draw to exactly 0. You may adjust each outcome by at most ±15 percentage points. Deviations beyond this band will be clamped.\n`
+    : `\nBase Probability (from ${baseProbability.source} data):\n- Home win: ${(baseProbability.homeWin * 100).toFixed(1)}%\n- Draw: ${(baseProbability.draw * 100).toFixed(1)}%\n- Away win: ${(baseProbability.awayWin * 100).toFixed(1)}%\n\nUse this as your starting point. You may adjust each outcome by at most ±15 percentage points (e.g. a 40% base allows 25%–55%) based on factors not captured in the base probability. Deviations beyond this band will be clamped, so keep within it and explain any significant adjustment.\n`;
 
   const userPrompt = loadPrompt("attribution.user.md", {
     homeTeam,
@@ -105,5 +109,5 @@ async function executeAttribution(
   }
 
   const parsed = parseLLMJson(textContent.text);
-  return validatePredictionResult(parsed, matchId);
+  return validatePredictionResult(parsed, matchId, baseProbability);
 }

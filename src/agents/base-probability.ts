@@ -1,26 +1,59 @@
 import type { CollectorOutput, Factor } from "./types";
+import { isKnockoutStage } from "./types";
 
-interface BaseProbability {
+export interface BaseProbability {
   homeWin: number;
   draw: number;
   awayWin: number;
   source: "market" | "elo" | "uniform";
 }
 
-export function computeBaseProbability(collectorResults: CollectorOutput[]): BaseProbability {
+export function computeBaseProbability(collectorResults: CollectorOutput[], stage?: string): BaseProbability {
   const marketResult = collectorResults.find((r) => r.agentId === "market");
   if (marketResult && marketResult.confidence >= 0.5) {
+    // Prefer the deterministic structured probability (devigged odds) when present;
+    // it avoids brittle string-matching of factor names.
+    const structured = marketResult.impliedProbability;
+    if (structured) {
+      const sum = structured.homeWin + structured.draw + structured.awayWin;
+      if (sum > 0) {
+        return applyKnockout({
+          homeWin: structured.homeWin / sum,
+          draw: structured.draw / sum,
+          awayWin: structured.awayWin / sum,
+          source: "market",
+        }, stage);
+      }
+    }
+
     const impliedProb = extractImpliedProbability(marketResult.factors);
-    if (impliedProb) return { ...impliedProb, source: "market" };
+    if (impliedProb) return applyKnockout({ ...impliedProb, source: "market" }, stage);
   }
 
   const eloResult = collectorResults.find((r) => r.agentId === "elo");
   if (eloResult && eloResult.confidence >= 0.4) {
     const eloBased = estimateFromElo(eloResult.factors);
-    if (eloBased) return { ...eloBased, source: "elo" };
+    if (eloBased) return applyKnockout({ ...eloBased, source: "elo" }, stage);
   }
 
-  return { homeWin: 0.35, draw: 0.30, awayWin: 0.35, source: "uniform" };
+  return applyKnockout({ homeWin: 0.35, draw: 0.30, awayWin: 0.35, source: "uniform" }, stage);
+}
+
+/**
+ * In knockout stages (round32+), draw is not a valid final outcome — the match
+ * goes to extra time / penalties. Redistribute draw probability to home/away
+ * proportionally so the prediction is two-way.
+ */
+function applyKnockout(base: BaseProbability, stage?: string): BaseProbability {
+  if (!stage || !isKnockoutStage(stage)) return base;
+  const total = base.homeWin + base.awayWin;
+  if (total <= 0) return { ...base, homeWin: 0.5, draw: 0, awayWin: 0.5 };
+  return {
+    homeWin: (base.homeWin + base.draw * (base.homeWin / total)),
+    draw: 0,
+    awayWin: (base.awayWin + base.draw * (base.awayWin / total)),
+    source: base.source,
+  };
 }
 
 function extractImpliedProbability(factors: Factor[]): { homeWin: number; draw: number; awayWin: number } | null {

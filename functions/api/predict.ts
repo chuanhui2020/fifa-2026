@@ -1,10 +1,12 @@
 import { predict } from "../../src/agents/orchestrator";
 import { setKVStore } from "../../src/agents/cache";
+import { setCalibrationStore } from "../../src/agents/calibration";
 
 interface Env {
   FIFA_MATCHES: KVNamespace;
   DEEPSEEK_API_KEY: string;
   TAVILY_API_KEY: string;
+  ODDS_API_KEY: string;
   ADMIN_PASSWORD: string;
   ADMIN_SECRET: string;
 }
@@ -37,8 +39,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   process.env.DEEPSEEK_API_KEY = context.env.DEEPSEEK_API_KEY;
   process.env.TAVILY_API_KEY = context.env.TAVILY_API_KEY;
+  process.env.ODDS_API_KEY = context.env.ODDS_API_KEY;
 
   setKVStore(context.env.FIFA_MATCHES);
+  setCalibrationStore(context.env.FIFA_MATCHES);
 
   const ip = context.request.headers.get("CF-Connecting-IP") || "unknown";
   const window = Math.floor(Date.now() / (WINDOW_S * 1000));

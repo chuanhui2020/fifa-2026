@@ -289,8 +289,15 @@ Prompt 与代码解耦，修改提示词不需要改代码或重新部署。
 
 ```bash
 DEEPSEEK_API_KEY=xxx      # DeepSeek API 密钥
-TAVILY_API_KEY=xxx        # Tavily 搜索 API 密钥
+TAVILY_API_KEY=xxx        # Tavily 搜索 API 密钥（market agent 回退路径）
+ODDS_API_KEY=xxx          # the-odds-api.com 密钥（market agent 主路径，确定性赔率 + devig）
 ```
+
+本地开发把以上变量写入 `.dev.vars`（已 gitignore），生产用 `wrangler pages secret put ODDS_API_KEY` 注入。
+
+### 赔率来源（market agent）
+
+market agent 优先走**确定性路径**：从 the-odds-api.com 拉取整届世界杯 h2h（胜/平/负）赔率，对各家博彩做**比例归一化 devig**（去抽水），跨家取均值得到公平隐含概率，作为 `computeBaseProbability` 的高优先级锚点。整届赔率缓存为单一快照（TTL 3h），所有场次共享，把 API 调用频率与预测新鲜度解耦，稳在免费额度（500 次/月）内。找不到赔率（如淘汰赛占位对阵）或无 key 时回退到原 LLM + Tavily 搜索路径。
 
 ## 性能与限制
 
