@@ -48,13 +48,14 @@ function AttributionItem({ factor, contribution, explanation, direction }: {
   explanation: string;
   direction: "home" | "away" | "neutral";
 }) {
-  const config = {
+  const configMap = {
     home: { color: "text-emerald-300", barColor: "bg-emerald-400", icon: "↑" },
     away: { color: "text-rose-300", barColor: "bg-rose-400", icon: "↓" },
     neutral: { color: "text-amber-300", barColor: "bg-amber-400", icon: "→" },
-  }[direction];
+  };
+  const config = configMap[direction] ?? configMap.neutral;
 
-  const absContribution = Math.abs(contribution);
+  const absContribution = Math.abs(contribution || 0);
   const barWidth = absContribution * 100;
 
   return (
@@ -115,9 +116,19 @@ function LoadingSkeleton() {
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return "";
   const hours = date.getHours().toString().padStart(2, "0");
   const minutes = date.getMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+
+/** 安全提取域名；source 不是合法 URL 时返回 null（避免 new URL 抛错白屏）。 */
+function safeHostname(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return null;
+  }
 }
 
 const AGENT_NAMES: Record<string, string> = {
@@ -128,7 +139,7 @@ const AGENT_NAMES: Record<string, string> = {
 };
 
 function MetaInfo({ result }: { result: PredictionResult }) {
-  const { missingAgents, sources, generatedAt, log } = result;
+  const { missingAgents = [], sources = [], generatedAt, log } = result;
 
   return (
     <div className="mt-3 pt-2 border-t border-border/30 space-y-1.5">
@@ -158,18 +169,25 @@ function MetaInfo({ result }: { result: PredictionResult }) {
             数据来源 ({sources.length})
           </summary>
           <ul className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
-            {sources.map((url, i) => (
-              <li key={i} className="text-xs text-highlight/70 truncate">
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-highlight transition-colors duration-150"
-                >
-                  {new URL(url).hostname.replace("www.", "")}
-                </a>
-              </li>
-            ))}
+            {sources.map((url, i) => {
+              const host = safeHostname(url);
+              return (
+                <li key={i} className="text-xs text-highlight/70 truncate">
+                  {host ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-highlight transition-colors duration-150"
+                    >
+                      {host}
+                    </a>
+                  ) : (
+                    <span className="text-muted">{url}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
@@ -263,7 +281,13 @@ export function PredictionCard({
     );
   }
 
-  const { prediction, attribution, summary, confidence, missingAgents } = result!;
+  const {
+    prediction = { homeWin: 0, draw: 0, awayWin: 0 },
+    attribution = [],
+    summary,
+    confidence = 0,
+    missingAgents = [],
+  } = result!;
 
   return (
     <div className="mt-3 pt-3 border-t border-border">

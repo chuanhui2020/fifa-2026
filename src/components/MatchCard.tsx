@@ -4,6 +4,7 @@ import { Match } from "@/data/matches";
 import { getTeamDisplay } from "@/data/teams";
 import { getVenueDisplay, getCityDisplay } from "@/data/venues";
 import { PredictionCard } from "./PredictionCard";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 function StatusBadge({ status }: { status: Match["status"] }) {
   const config = {
@@ -110,7 +111,9 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
       </div>
 
       {match.status === "upcoming" && (
-        <PredictionCard matchId={String(match.id)} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+        <ErrorBoundary>
+          <PredictionCard matchId={String(match.id)} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+        </ErrorBoundary>
       )}
     </article>
   );
