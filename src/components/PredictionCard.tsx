@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { PredictionResult, Attribution } from "@/agents/types";
+import { getTeamDisplay } from "@/data/teams";
 import { useAdmin } from "@/contexts/AdminContext";
 
 function ProbabilityBar({ homeWin, draw, awayWin, homeTeam, awayTeam }: {
@@ -138,35 +139,32 @@ const AGENT_NAMES: Record<string, string> = {
   squad: "阵容",
 };
 
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h1.46a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v3.27a.75.75 0 001.5 0v-1.46l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V3.9a.75.75 0 00-1.5 0v1.46l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.311h-1.46a.75.75 0 000 1.5h3.27a.75.75 0 00.53-.219z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
 function MetaInfo({ result }: { result: PredictionResult }) {
   const { missingAgents = [], sources = [], generatedAt, log } = result;
+  const meta = `生成于 ${formatTime(generatedAt)}${log ? ` · ${(log.totalDurationMs / 1000).toFixed(1)}s` : ""}`;
 
   return (
     <div className="mt-3 pt-2 border-t border-border/30 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted">
-          生成于 {formatTime(generatedAt)}
-          {log && ` · ${(log.totalDurationMs / 1000).toFixed(1)}s`}
-        </span>
-        {missingAgents.length > 0 && (
-          <span className="text-xs text-amber-400/80">
-            缺失: {missingAgents.map((a) => AGENT_NAMES[a] || a).join("、")}
-          </span>
-        )}
-      </div>
-
-      {sources.length > 0 && (
+      {sources.length > 0 ? (
         <details className="group">
           <summary className="text-xs text-muted cursor-pointer hover:text-foreground/70 transition-colors duration-150 list-none flex items-center gap-1">
             <svg
-              className="w-3 h-3 transition-transform duration-200 group-open:rotate-90"
+              className="w-3 h-3 shrink-0 transition-transform duration-200 group-open:rotate-90"
               viewBox="0 0 20 20"
               fill="currentColor"
               aria-hidden="true"
             >
               <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
             </svg>
-            数据来源 ({sources.length})
+            <span className="truncate">数据来源 ({sources.length}) · {meta}</span>
           </summary>
           <ul className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
             {sources.map((url, i) => {
@@ -190,6 +188,13 @@ function MetaInfo({ result }: { result: PredictionResult }) {
             })}
           </ul>
         </details>
+      ) : (
+        <p className="text-xs text-muted">{meta}</p>
+      )}
+      {missingAgents.length > 0 && (
+        <p className="text-xs text-amber-400/80">
+          缺失: {missingAgents.map((a) => AGENT_NAMES[a] || a).join("、")}
+        </p>
       )}
     </div>
   );
@@ -293,9 +298,22 @@ export function PredictionCard({
     missingAgents = [],
   } = display!;
 
+  const homeCn = getTeamDisplay(homeTeam).cn || homeTeam;
+  const awayCn = getTeamDisplay(awayTeam).cn || awayTeam;
+  const hasDraw = prediction.draw >= 0.005;
+
+  // 预测结论：取概率最高的结果作为醒目结论
+  const outcomes = [
+    { label: `${homeCn}胜`, prob: prediction.homeWin, color: "text-emerald-400" },
+    { label: "平局", prob: prediction.draw, color: "text-amber-400" },
+    { label: `${awayCn}胜`, prob: prediction.awayWin, color: "text-rose-400" },
+  ];
+  const top = outcomes.reduce((a, b) => (b.prob > a.prob ? b : a));
+
   return (
     <div className="mt-3 pt-3 border-t border-border">
-      <div className="flex items-center justify-between mb-2">
+      {/* 标题行 */}
+      <div className="flex items-center justify-between mb-2.5">
         <span className="text-sm font-medium text-foreground">AI 预测</span>
         <div className="flex items-center gap-2">
           {missingAgents.length > 0 && (
@@ -303,38 +321,39 @@ export function PredictionCard({
               ⚠ 部分数据缺失
             </span>
           )}
-          <span className="text-xs text-muted tabular-nums">
+          <span className="px-2 py-0.5 rounded-full bg-border/40 text-muted text-xs tabular-nums">
             置信度 {(confidence * 100).toFixed(0)}%
           </span>
-          {isAdmin && (
-            <button
-              onClick={handlePredict}
-              disabled={loading}
-              aria-label="重新预测"
-              className="text-xs text-highlight hover:text-highlight/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-            >
-              {loading ? "分析中…" : "重新预测"}
-            </button>
-          )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-sm tabular-nums mb-1.5">
-        <span className="text-emerald-300 font-medium w-1/3 text-left">{(prediction.homeWin * 100).toFixed(0)}%</span>
-        <span className="text-amber-300 font-medium w-1/3 text-center">{(prediction.draw * 100).toFixed(0)}%</span>
-        <span className="text-rose-300 font-medium w-1/3 text-right">{(prediction.awayWin * 100).toFixed(0)}%</span>
+      {/* 预测结论大字 */}
+      <div className="flex items-baseline gap-2 mb-2.5">
+        <span className={`text-base font-semibold ${top.color}`}>{top.label}</span>
+        <span className={`text-base font-semibold tabular-nums ${top.color}`}>
+          {(top.prob * 100).toFixed(0)}%
+        </span>
       </div>
+
       <ProbabilityBar
         homeWin={prediction.homeWin}
         draw={prediction.draw}
         awayWin={prediction.awayWin}
-        homeTeam={homeTeam}
-        awayTeam={awayTeam}
+        homeTeam={homeCn}
+        awayTeam={awayCn}
       />
-      <div className="flex items-center justify-between text-xs text-muted mt-1.5">
-        <span className="w-1/3 text-left">主胜</span>
-        <span className="w-1/3 text-center">平</span>
-        <span className="w-1/3 text-right">客胜</span>
+
+      {/* 概率明细（一行） */}
+      <div className="flex items-center justify-between gap-2 text-xs tabular-nums mt-1.5">
+        <span className="text-emerald-300 truncate min-w-0 flex-1 text-left">
+          {homeCn} {(prediction.homeWin * 100).toFixed(0)}%
+        </span>
+        {hasDraw && (
+          <span className="text-amber-300 shrink-0 text-center">平 {(prediction.draw * 100).toFixed(0)}%</span>
+        )}
+        <span className="text-rose-300 truncate min-w-0 flex-1 text-right">
+          {awayCn} {(prediction.awayWin * 100).toFixed(0)}%
+        </span>
       </div>
 
       {summary && (
@@ -352,7 +371,7 @@ export function PredictionCard({
             >
               <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
             </svg>
-            归因分析详情
+            归因分析 ({attribution.length}项)
           </summary>
           <div className="mt-2 pt-1">
             {attribution.map((attr: Attribution, i: number) => (
@@ -363,6 +382,27 @@ export function PredictionCard({
       )}
 
       <MetaInfo result={display!} />
+
+      {isAdmin && (
+        <button
+          onClick={handlePredict}
+          disabled={loading}
+          aria-label="重新预测"
+          className="mt-3 w-full min-h-[44px] py-2.5 rounded-lg border border-border text-sm font-medium text-muted hover:bg-card-hover hover:text-foreground active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <span className="w-3.5 h-3.5 border-2 border-muted/30 border-t-muted rounded-full animate-spin" />
+              分析中…
+            </>
+          ) : (
+            <>
+              <RefreshIcon className="w-3.5 h-3.5" />
+              重新预测
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
