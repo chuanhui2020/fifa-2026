@@ -152,7 +152,7 @@ Output ONLY valid JSON matching this schema:
 {
   "prediction": { "homeWin": number, "draw": number, "awayWin": number },
   "attribution": [
-    { "factor": "string", "contribution": number(-1 to 1), "direction": "home"|"away"|"neutral", "explanation": "string" }
+    { "factor": "简体中文短语", "contribution": number(-1 to 1), "direction": "home"|"away"|"neutral", "explanation": "简体中文句子" }
   ],
   "summary": "string (2-3 sentences natural language summary in Chinese)",
   "confidence": number(0-1)
@@ -162,7 +162,7 @@ Rules:
 - homeWin + draw + awayWin MUST equal 1.0 (tolerance: 0.01)
 - Each probability MUST be between 0 and 1
 - attribution contributions should reflect actual impact on the prediction
-- summary should be concise and insightful, written in Chinese
+- ALL user-facing text MUST be written in Simplified Chinese (简体中文): every "factor" name, every "explanation", and the "summary". Do NOT output English sentences in these fields. Proper nouns and technical terms (team names, Elo, devig) may stay in their original form, but surrounding text must be Chinese.
 - confidence reflects how reliable the overall prediction is given data quality
 - If collector data has low confidence or missing agents, lower your overall confidence accordingly`;
 
