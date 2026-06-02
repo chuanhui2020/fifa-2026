@@ -42,8 +42,8 @@ function isInTournamentWindow(now: Date): boolean {
   return now >= start && now <= end;
 }
 
-export default {
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+const worker = {
+  async scheduled(event: ScheduledEvent, env: Env) {
     const now = new Date();
 
     if (!isInTournamentWindow(now)) {
@@ -73,7 +73,7 @@ export default {
     try {
       const events = await fetchESPNMultipleDates(dates);
       updates = transformESPNEvents(events);
-    } catch (espnError) {
+    } catch {
       if (env.FOOTBALL_DATA_API_KEY) {
         try {
           updates = await fetchFootballData(env.FOOTBALL_DATA_API_KEY);
@@ -107,3 +107,5 @@ export default {
     return new Response("Not found", { status: 404 });
   },
 };
+
+export default worker;

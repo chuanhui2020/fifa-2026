@@ -25,6 +25,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
+    // 挂载后从 URL 参数 + localStorage 恢复登录态。静态导出在构建期没有 window，
+    // 必须在 effect 中读取，因此这里的 setState 是必要的初始化而非级联渲染。
+    /* eslint-disable react-hooks/set-state-in-effect */
     const params = new URLSearchParams(window.location.search);
     if (params.get("admin") === "1") {
       const stored = localStorage.getItem("admin_token");
@@ -34,6 +37,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setShowLoginModal(true);
       }
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const login = useCallback(async (password: string) => {

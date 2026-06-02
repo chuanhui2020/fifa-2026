@@ -35,6 +35,9 @@ export function useMatches(): MatchesState {
   }, []);
 
   useEffect(() => {
+    // fetchMatches 仅在 await fetch 之后才 setState（异步，非同步级联渲染），
+    // 且需要在挂载时拉取一次最新数据覆盖静态兜底数据。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMatches();
   }, [fetchMatches]);
 

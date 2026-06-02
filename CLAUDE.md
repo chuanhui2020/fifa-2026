@@ -25,13 +25,14 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - [x] 微信端适配（safe-area、禁字体缩放、tap-highlight）
 - [x] 无障碍支持（prefers-reduced-motion、aria-label）
 
+- [x] Cloudflare Pages 部署配置（wrangler.toml + deploy 脚本 + README 部署指南）
+- [x] 实时比分更新（独立 Worker + Cron + KV，赛事窗口自限流）
+- [x] Agent 系统（概率计算、预测）— 采集 + 归因 + 赔率 devig 已接入
+
 ### 待完成
 
 - [ ] 时区切换（ET / 北京时间 / 自动检测）
 - [ ] 收藏/关注比赛功能
-- [ ] Cloudflare Pages 部署配置
-- [ ] 实时比分更新（Cloudflare Cron Trigger）
-- [x] Agent 系统（概率计算、预测）— 骨架已完成
 - [ ] 分享功能（微信分享卡片 meta）
 
 ## 数据来源
@@ -61,45 +62,51 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - eloratings.net 不可用 → elo agent 回退到 LLM + Tavily 搜索评分
 - 两个确定性源都挂 → 系统仍可运行，只是概率锚点退化为 LLM 输出（有幻觉风险）
 
+## 架构
+
+静态导出（`next.config.ts` 的 `output: "export"`）+ Cloudflare Pages Functions。
+**后端接口不在 `src/app/api`，而在根目录 `functions/api/`**（Pages Functions 约定）。
+实时比分由独立 Worker（`worker/`）通过 Cron 抓取写入 KV，前端读 `/api/matches`，
+失败则回退到内置静态赛程（`src/data/matches.ts`）——后端全挂也能看赛程。
+
 ## 项目结构
 
 ```
+functions/api/                # Cloudflare Pages Functions（后端接口）
+├── predict.ts                # 预测（admin 鉴权 + IP 限流 + KV 缓存）
+├── predict-stream.ts         # 预测流式输出
+├── admin-login.ts            # 管理员登录（签发 HMAC token）
+├── matches.ts                # 读取 KV 赛程
+├── resolve-match.ts          # 录入真实比分（校准用）
+├── calibration-metrics.ts    # 校准指标
+└── warmup.ts                 # 预热
+
+worker/                       # 独立 Worker：定时抓 ESPN 实时比分 → KV
+└── src/index.ts              # Cron 入口（按赛事/比赛窗口自限流）
+                              # + espn.ts / football-data.ts / transform.ts / group-map.ts
+
 src/
 ├── app/
-│   ├── globals.css          # 深色主题变量 + 动画 + 微信适配
-│   ├── layout.tsx           # 全局布局 + meta + viewport
-│   ├── page.tsx             # 主赛程页面（筛选 + 列表）
-│   └── api/predict/route.ts # 预测 API 端点
+│   ├── globals.css           # 深色主题变量 + 动画 + 微信适配
+│   ├── layout.tsx            # 全局布局 + meta + viewport
+│   └── page.tsx              # 主赛程页面（筛选 + 列表）
 ├── agents/
-│   ├── types.ts             # 统一类型定义
-│   ├── llm.ts               # DeepSeek 客户端配置
-│   ├── orchestrator.ts      # 编排层（并行采集 + 串行归因）
-│   ├── prompts/             # Prompt 模板文件
-│   │   ├── loader.ts        # 模板加载 + 变量替换
-│   │   ├── elo.system.md
-│   │   ├── elo.user.md
-│   │   ├── form.system.md
-│   │   ├── form.user.md
-│   │   ├── market.system.md
-│   │   ├── market.user.md
-│   │   ├── squad.system.md
-│   │   ├── squad.user.md
-│   │   ├── attribution.system.md
-│   │   └── attribution.user.md
-│   ├── collectors/          # 采集 Agent（DeepSeek-V4-Flash）
-│   │   ├── types.ts
-│   │   ├── elo.ts
-│   │   ├── form.ts
-│   │   ├── market.ts
-│   │   └── squad.ts
-│   └── attribution/         # 归因 Agent（DeepSeek-V4-Pro）
-│       └── agent.ts
-├── components/
-│   ├── FilterChips.tsx      # 横滑筛选组件
-│   ├── MatchCard.tsx        # 比赛卡片组件
-│   └── PredictionCard.tsx   # 预测结果展示组件
-└── data/
-    └── matches.ts           # 完整赛程数据（104 场）
+│   ├── orchestrator.ts       # 编排（并行采集 + 串行归因 + 超时/缓存/校准记录）
+│   ├── base-probability.ts   # 基准概率
+│   ├── cache.ts              # KV 缓存读写
+│   ├── calibration.ts        # 校准数据记录
+│   ├── llm.ts / types.ts / validate.ts / parse-json.ts / team-names.ts
+│   ├── collectors/           # 采集 Agent: elo / form / market / squad（+ runner）
+│   ├── attribution/          # 归因 Agent（最终概率 + 中文摘要）
+│   ├── elo/                  # eloratings.net 直连客户端
+│   ├── odds/                 # the-odds-api 客户端 + devig（去抽水）
+│   ├── tools/                # web-search（Tavily）
+│   └── prompts/              # Prompt 模板（.md）+ loader
+├── components/               # FilterChips / MatchCard / PredictionCard / AdminLoginModal
+├── contexts/AdminContext.tsx # 管理员登录态
+├── hooks/useMatches.ts       # 赛程数据（静态兜底 + 轮询 /api/matches）
+├── lib/timezone.ts           # 时区工具
+└── data/                     # matches.ts（104 场）/ teams.ts / venues.ts
 ```
 
 ## 开发命令
