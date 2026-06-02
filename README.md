@@ -39,6 +39,8 @@ npx wrangler pages dev out       # 本地起 Pages + Functions
 
 ## 部署到 Cloudflare
 
+> 架构拓扑(Pages + Functions + KV + Worker、数据流、KV 键)见 [docs/cloudflare-architecture.md](docs/cloudflare-architecture.md)。
+
 项目由**两个可独立部署的部分**组成：
 
 1. **Pages**：前端静态站（`out/`）+ 后端接口（`functions/api/*`，预测、登录、赛程读取）。

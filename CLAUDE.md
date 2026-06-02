@@ -69,6 +69,9 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 实时比分由独立 Worker（`worker/`）通过 Cron 抓取写入 KV，前端读 `/api/matches`，
 失败则回退到内置静态赛程（`src/data/matches.ts`）——后端全挂也能看赛程。
 
+完整 Cloudflare 部署拓扑（组件清单、数据流、KV 键参考）见 [docs/cloudflare-architecture.md](docs/cloudflare-architecture.md)；
+预测系统内部的 Agent 管线见 [docs/architecture.md](docs/architecture.md)。
+
 ## 项目结构
 
 ```

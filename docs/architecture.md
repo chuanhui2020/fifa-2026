@@ -1,5 +1,7 @@
 # FIFA 2026 比赛预测系统 - 架构文档
 
+> 本文档聚焦**预测系统内部的 Agent 管线**。项目整体的 Cloudflare 部署拓扑(Pages + Functions + KV + 独立 Cron Worker、数据流、KV 键)见 [cloudflare-architecture.md](cloudflare-architecture.md)。
+
 ## 系统概述
 
 基于 Pi Agent 框架的多 Agent 比赛预测系统。通过多个专职采集 Agent 并行收集实时数据，由归因 Agent 综合分析并输出带归因拆解的预测结果。
