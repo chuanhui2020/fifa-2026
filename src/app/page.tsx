@@ -6,6 +6,7 @@ import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
+import { usePredictions } from "@/hooks/usePredictions";
 import { useAdmin } from "@/contexts/AdminContext";
 
 function formatDate(dateStr: string): string {
@@ -19,6 +20,7 @@ function formatDate(dateStr: string): string {
 
 export default function SchedulePage() {
   const { matches, lastUpdated, isLive } = useMatches();
+  const predictions = usePredictions();
   const { isAdmin, logout } = useAdmin();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
@@ -117,7 +119,12 @@ export default function SchedulePage() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {dateMatches.map(({ match, convertedTime }) => (
-                    <MatchCard key={match.id} match={match} displayTime={convertedTime} />
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      displayTime={convertedTime}
+                      prediction={predictions[String(match.id)] ?? null}
+                    />
                   ))}
                 </div>
               </section>

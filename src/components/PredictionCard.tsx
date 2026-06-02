@@ -199,17 +199,20 @@ export function PredictionCard({
   matchId,
   homeTeam,
   awayTeam,
+  published,
 }: {
   matchId: string;
   homeTeam: string;
   awayTeam: string;
+  published?: PredictionResult | null;
 }) {
   const { isAdmin, token } = useAdmin();
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isAdmin) return null;
+  // 显示优先级：管理员本次刚生成的结果 > 已发布的结果（普通访客只读查看）
+  const display = result ?? published ?? null;
 
   async function handlePredict() {
     setLoading(true);
@@ -239,7 +242,8 @@ export function PredictionCard({
     }
   }
 
-  if (!result && !error) {
+  if (!display && !error) {
+    if (!isAdmin) return null;
     return (
       <div>
         <button
@@ -260,7 +264,7 @@ export function PredictionCard({
     );
   }
 
-  if (error) {
+  if (error && !display) {
     return (
       <div className="mt-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20">
         <div className="flex items-start gap-2">
@@ -287,7 +291,7 @@ export function PredictionCard({
     summary,
     confidence = 0,
     missingAgents = [],
-  } = result!;
+  } = display!;
 
   return (
     <div className="mt-3 pt-3 border-t border-border">
@@ -302,6 +306,16 @@ export function PredictionCard({
           <span className="text-xs text-muted tabular-nums">
             置信度 {(confidence * 100).toFixed(0)}%
           </span>
+          {isAdmin && (
+            <button
+              onClick={handlePredict}
+              disabled={loading}
+              aria-label="重新预测"
+              className="text-xs text-highlight hover:text-highlight/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              {loading ? "分析中…" : "重新预测"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -348,7 +362,7 @@ export function PredictionCard({
         </details>
       )}
 
-      <MetaInfo result={result!} />
+      <MetaInfo result={display!} />
     </div>
   );
 }

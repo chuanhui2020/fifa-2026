@@ -1,6 +1,7 @@
 "use client";
 
 import { Match } from "@/data/matches";
+import type { PredictionResult } from "@/agents/types";
 import { getTeamDisplay } from "@/data/teams";
 import { getVenueDisplay, getCityDisplay } from "@/data/venues";
 import { PredictionCard } from "./PredictionCard";
@@ -73,7 +74,7 @@ function StageLabel({ match }: { match: Match }) {
   return <span className="text-xs text-highlight font-medium">{stageLabels[match.stage] || match.stage}</span>;
 }
 
-export function MatchCard({ match, displayTime }: { match: Match; displayTime?: string }) {
+export function MatchCard({ match, displayTime, prediction }: { match: Match; displayTime?: string; prediction?: PredictionResult | null }) {
   const homeWins = match.status === "finished" && match.homeScore !== undefined && match.awayScore !== undefined && match.homeScore > match.awayScore;
   const awayWins = match.status === "finished" && match.homeScore !== undefined && match.awayScore !== undefined && match.awayScore > match.homeScore;
 
@@ -112,7 +113,12 @@ export function MatchCard({ match, displayTime }: { match: Match; displayTime?: 
 
       {match.status === "upcoming" && (
         <ErrorBoundary>
-          <PredictionCard matchId={String(match.id)} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+          <PredictionCard
+            matchId={String(match.id)}
+            homeTeam={match.homeTeam}
+            awayTeam={match.awayTeam}
+            published={prediction}
+          />
         </ErrorBoundary>
       )}
     </article>
