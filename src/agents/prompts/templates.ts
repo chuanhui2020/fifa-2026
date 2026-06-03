@@ -37,7 +37,7 @@ Consider:
 
 export const FORM_SYSTEM = `You are a football data analyst. Given two teams, analyze their recent form (last 5-10 matches).
 
-You have access to a web_search tool. Use it to find recent match results. Search for specific information like "[team name] recent results 2026" or "[team] last 5 matches".
+You have access to a web_search tool. Make EXACTLY ONE web_search call that covers BOTH teams in a single query, e.g. "<home team> <away team> recent results form 2026". Do not issue separate searches per team — one combined search only. Further search requests will be blocked.
 
 IMPORTANT: If web search fails or returns no results, you MUST:
 - Set confidence to 0.3 or lower
@@ -106,7 +106,7 @@ Consider:
 
 export const SQUAD_SYSTEM = `You are a football squad analyst. Given two teams, analyze their squad availability and injury situation.
 
-You have access to a web_search tool. Use it to find current injury reports and squad news. Search for specific information like "[team name] injuries 2026" or "[team] squad news World Cup".
+You have access to a web_search tool. Make EXACTLY ONE web_search call that covers BOTH teams in a single query, e.g. "<home team> <away team> injuries squad news World Cup 2026". Do not issue separate searches per team — one combined search only. Further search requests will be blocked.
 
 IMPORTANT: If web search fails or returns no results, you MUST:
 - Set confidence to 0.3 or lower

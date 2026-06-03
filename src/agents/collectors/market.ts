@@ -55,11 +55,16 @@ function buildDeterministicOutput(matchId: string, odds: MatchOdds): CollectorOu
 export const marketAgent: CollectorAgent = {
   id: "market",
   name: "Market Odds Agent",
-  async run(matchId, homeTeam, awayTeam, context?: MatchContext) {
-    const cached = await getCachedCollector("market", matchId);
-    if (cached) return cached;
+  async run(matchId, homeTeam, awayTeam, context?: MatchContext, opts?) {
+    if (!opts?.forceRefresh) {
+      const cached = await getCachedCollector("market", matchId);
+      if (cached) return cached;
+    }
 
-    // Primary: deterministic devigged odds from the-odds-api snapshot.
+    // Primary: deterministic devigged odds from the-odds-api snapshot. The snapshot
+    // is shared across the whole tournament and bounded by the-odds-api's 500/month
+    // quota — force-refresh does NOT re-pull it (its own TTL governs freshness),
+    // only the per-match collector cache above.
     const odds = await getMatchOdds(homeTeam, awayTeam);
     if (odds) {
       const output = buildDeterministicOutput(matchId, odds);
@@ -70,7 +75,7 @@ export const marketAgent: CollectorAgent = {
     // Fallback: existing LLM + web-search market agent (preserves prior behavior
     // for placeholder/knockout fixtures and when odds are unavailable).
     const fallback = await runCollectorAgent(
-      "market", matchId, homeTeam, awayTeam, "market.user.md", DEFAULT_CONFIDENCE, context
+      "market", matchId, homeTeam, awayTeam, "market.user.md", DEFAULT_CONFIDENCE, context, opts
     );
     await setCacheCollector("market", matchId, fallback);
     return fallback;

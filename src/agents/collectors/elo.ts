@@ -42,11 +42,15 @@ function buildDeterministicOutput(matchId: string, homeTeam: string, awayTeam: s
 export const eloAgent: CollectorAgent = {
   id: "elo",
   name: "Elo Rating Agent",
-  async run(matchId, homeTeam, awayTeam, context?: MatchContext) {
-    const cached = await getCachedCollector("elo", matchId);
-    if (cached) return cached;
+  async run(matchId, homeTeam, awayTeam, context?: MatchContext, opts?) {
+    if (!opts?.forceRefresh) {
+      const cached = await getCachedCollector("elo", matchId);
+      if (cached) return cached;
+    }
 
-    // Primary: deterministic ratings from eloratings.net.
+    // Primary: deterministic ratings from eloratings.net. The ratings table is a
+    // shared, deterministic snapshot — force-refresh does not bust it (its own
+    // 24h TTL governs freshness), only the per-match collector cache above.
     const elo = await getEloRatings(homeTeam, awayTeam);
     if (elo) {
       const output = buildDeterministicOutput(matchId, homeTeam, awayTeam, elo);
@@ -57,7 +61,7 @@ export const eloAgent: CollectorAgent = {
     // Fallback: existing LLM + web-search Elo agent (for placeholder/knockout
     // fixtures and when the ratings table is unavailable).
     const fallback = await runCollectorAgent(
-      "elo", matchId, homeTeam, awayTeam, "elo.user.md", DEFAULT_CONFIDENCE, context
+      "elo", matchId, homeTeam, awayTeam, "elo.user.md", DEFAULT_CONFIDENCE, context, opts
     );
     await setCacheCollector("elo", matchId, fallback);
     return fallback;

@@ -219,7 +219,7 @@ export function PredictionCard({
   // 显示优先级：管理员本次刚生成的结果 > 已发布的结果（普通访客只读查看）
   const display = result ?? published ?? null;
 
-  async function handlePredict() {
+  async function handlePredict(forceRefresh = false) {
     setLoading(true);
     setError(null);
 
@@ -230,7 +230,7 @@ export function PredictionCard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ matchId, homeTeam, awayTeam }),
+        body: JSON.stringify({ matchId, homeTeam, awayTeam, forceRefresh }),
       });
 
       if (!res.ok) {
@@ -252,7 +252,7 @@ export function PredictionCard({
     return (
       <div>
         <button
-          onClick={handlePredict}
+          onClick={() => handlePredict(false)}
           disabled={loading}
           aria-label={loading ? "AI 正在分析比赛" : "点击获取 AI 预测"}
           className="mt-2 w-full min-h-[44px] py-2.5 px-3 rounded-lg bg-highlight/10 text-highlight text-sm font-medium hover:bg-highlight/20 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -279,7 +279,7 @@ export function PredictionCard({
           <div>
             <p className="text-xs text-rose-300">{error}</p>
             <button
-              onClick={handlePredict}
+              onClick={() => handlePredict(false)}
               className="mt-2 min-h-[44px] px-3 py-2 text-xs font-medium text-highlight bg-highlight/10 rounded-lg hover:bg-highlight/20 active:scale-[0.98] transition-all duration-150"
             >
               重新预测
@@ -385,9 +385,10 @@ export function PredictionCard({
 
       {isAdmin && (
         <button
-          onClick={handlePredict}
+          onClick={() => handlePredict(true)}
           disabled={loading}
-          aria-label="重新预测"
+          aria-label="强制刷新预测（绕过缓存，重新采集最新数据）"
+          title="绕过缓存，重新采集最新数据"
           className="mt-3 w-full min-h-[44px] py-2.5 rounded-lg border border-border text-sm font-medium text-muted hover:bg-card-hover hover:text-foreground active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {loading ? (
@@ -398,7 +399,7 @@ export function PredictionCard({
           ) : (
             <>
               <RefreshIcon className="w-3.5 h-3.5" />
-              重新预测
+              强制刷新
             </>
           )}
         </button>

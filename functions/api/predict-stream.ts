@@ -50,7 +50,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   setKVStore(context.env.FIFA_MATCHES);
   setCalibrationStore(context.env.FIFA_MATCHES);
 
-  let body: { matchId?: string; homeTeam?: string; awayTeam?: string };
+  let body: { matchId?: string; homeTeam?: string; awayTeam?: string; forceRefresh?: boolean };
   try {
     body = await context.request.json();
   } catch {
@@ -60,7 +60,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     );
   }
 
-  const { matchId, homeTeam, awayTeam } = body;
+  const { matchId, homeTeam, awayTeam, forceRefresh } = body;
   if (!matchId || !homeTeam || !awayTeam) {
     return new Response(
       JSON.stringify({ error: "matchId, homeTeam, and awayTeam are required" }),
@@ -76,7 +76,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     );
   }
 
-  const cached = await getCached(matchId);
+  const cached = forceRefresh ? null : await getCached(matchId);
   if (cached) {
     const encoder = new TextEncoder();
     const body = new ReadableStream({
@@ -120,7 +120,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         collectors.map(async (agent) => {
           const agentStart = Date.now();
           try {
-            const output = await agent.run(matchId, homeTeam, awayTeam, context_match);
+            const output = await agent.run(matchId, homeTeam, awayTeam, context_match, { forceRefresh: !!forceRefresh });
             const log = {
               agentId: agent.id,
               durationMs: Date.now() - agentStart,

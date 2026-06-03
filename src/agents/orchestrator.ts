@@ -36,10 +36,13 @@ export function lookupMatch(matchId: string): MatchContext & { homeTeam: string;
 export async function predict(
   matchId: string,
   homeTeam: string,
-  awayTeam: string
+  awayTeam: string,
+  opts?: { forceRefresh?: boolean }
 ): Promise<PredictionResult> {
-  const cached = await getCached(matchId);
-  if (cached) return cached;
+  if (!opts?.forceRefresh) {
+    const cached = await getCached(matchId);
+    if (cached) return cached;
+  }
 
   const matchData = lookupMatch(matchId);
   if (matchData) {
@@ -66,7 +69,7 @@ export async function predict(
       collectors.map(async (agent) => {
         const agentStart = Date.now();
         try {
-          const output = await agent.run(matchId, homeTeam, awayTeam, context);
+          const output = await agent.run(matchId, homeTeam, awayTeam, context, opts);
           collectorLogs.push({
             agentId: agent.id,
             durationMs: Date.now() - agentStart,

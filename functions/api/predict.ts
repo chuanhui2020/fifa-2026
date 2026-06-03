@@ -58,7 +58,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     expirationTtl: WINDOW_S,
   });
 
-  let body: { matchId?: string; homeTeam?: string; awayTeam?: string };
+  let body: { matchId?: string; homeTeam?: string; awayTeam?: string; forceRefresh?: boolean };
   try {
     body = await context.request.json();
   } catch {
@@ -68,7 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     );
   }
 
-  const { matchId, homeTeam, awayTeam } = body;
+  const { matchId, homeTeam, awayTeam, forceRefresh } = body;
   if (!matchId || !homeTeam || !awayTeam) {
     return new Response(
       JSON.stringify({ error: "matchId, homeTeam, and awayTeam are required" }),
@@ -77,7 +77,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const result = await predict(matchId, homeTeam, awayTeam);
+    const result = await predict(matchId, homeTeam, awayTeam, { forceRefresh: !!forceRefresh });
 
     // 持久化一份「已发布」副本（无 TTL），供公开只读接口 /api/predictions 给普通访客查看。
     // 与 30 分钟的预测缓存分开：缓存用于去重/admin 刷新，此副本长期保留。失败不影响返回。
