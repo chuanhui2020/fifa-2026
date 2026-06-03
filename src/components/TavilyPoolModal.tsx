@@ -107,8 +107,17 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
             <span>账号 {t.accounts}</span>
             <span className="text-emerald-400">健康 {t.healthy}</span>
             <span className="text-rose-400">已剔除 {t.exhausted}</span>
-            <span>本月已用 {t.totalUsed}（本地计数）</span>
-            <span title="本地软计数估算，非 Tavily 官方值；官方真实额度见各账号「官方」行">剩余 ~{t.totalRemaining}</span>
+            {t.liveUsed !== null ? (
+              <>
+                <span>已用 {t.liveUsed}</span>
+                <span>剩余 {t.liveRemaining}</span>
+              </>
+            ) : (
+              <span className="text-amber-400/80">官方额度不可用</span>
+            )}
+            {t.liveUnavailable > 0 && (
+              <span className="text-amber-400/80">{t.liveUnavailable} 个号额度未拉取到</span>
+            )}
           </div>
         )}
 
@@ -117,7 +126,15 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="space-y-2">
           {status?.accounts.map((a) => {
-            const pct = a.limit > 0 ? Math.min(100, (a.used / a.limit) * 100) : 0;
+            // 官方 /usage 为准:用量条与数字均取官方值;官方不可用时退化为"额度未知"。
+            const liveOk = !!a.live && !a.live.error && a.live.used !== null;
+            const officialUsed = liveOk ? a.live!.used! : null;
+            const officialLimit = liveOk ? a.live!.limit : null;
+            const officialRemaining = liveOk ? a.live!.remaining : null;
+            const pct =
+              officialUsed !== null && officialLimit && officialLimit > 0
+                ? Math.min(100, (officialUsed / officialLimit) * 100)
+                : 0;
             return (
               <div key={a.keyId} className="rounded-xl border border-border p-3">
                 <div className="flex items-center justify-between mb-1.5">
@@ -137,8 +154,18 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                   />
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[11px] text-muted tabular-nums">
-                    本地计数 {a.used} / {a.limit}（剩 {a.remaining}）{a.failed > 0 ? ` · 失败 ${a.failed}` : ""}
+                  <span className="text-[11px] tabular-nums">
+                    {a.live?.error ? (
+                      <span className="text-amber-400/80">额度未知（{a.live.error}）</span>
+                    ) : officialUsed !== null ? (
+                      <span className="text-foreground/80">
+                        {officialUsed} / {officialLimit ?? "无限"}
+                        {officialRemaining !== null ? `（剩 ${officialRemaining}）` : ""}
+                        {a.live?.plan ? ` · ${a.live.plan}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-muted">额度加载中…</span>
+                    )}
                   </span>
                   {a.exhausted && (
                     <button
@@ -150,21 +177,6 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                     </button>
                   )}
                 </div>
-                {a.live && (
-                  <p className="text-[11px] mt-1 tabular-nums">
-                    {a.live.error ? (
-                      <span className="text-amber-400/80">官方额度: 拉取失败（{a.live.error}）</span>
-                    ) : (
-                      <span className="text-sky-300/90">
-                        官方额度: {a.live.used ?? "—"}
-                        {" / "}
-                        {a.live.limit ?? "无限"}
-                        {a.live.remaining !== null ? `（剩 ${a.live.remaining}）` : ""}
-                        {a.live.plan ? ` · ${a.live.plan}` : ""}
-                      </span>
-                    )}
-                  </p>
-                )}
                 {a.lastError && <p className="text-[11px] text-muted/70 mt-1 truncate">{a.lastError}</p>}
               </div>
             );

@@ -308,9 +308,13 @@ export interface PoolStatus {
     accounts: number;
     healthy: number;
     exhausted: number;
-    totalUsed: number;
-    totalRemaining: number;
+    totalUsed: number;       // 本地软计数合计(幕后,仅供参考)
+    totalRemaining: number;  // 本地软计数剩余(幕后)
     limitPerAccount: number;
+    // 官方 /usage 汇总(仅 withLive 时有意义)
+    liveUsed: number | null;        // 官方已用合计(有任一号成功即为数值)
+    liveRemaining: number | null;   // 官方剩余合计
+    liveUnavailable: number;        // 官方额度拉取失败的号数
   };
 }
 
@@ -328,6 +332,11 @@ export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
   let exhausted = 0;
   let totalUsed = 0;
   let totalRemaining = 0;
+  // 官方 /usage 汇总
+  let liveUsed = 0;
+  let liveRemaining = 0;
+  let liveHasAny = false;
+  let liveUnavailable = 0;
 
   for (const key of keys) {
     const id = await keyIdFor(key);
@@ -338,6 +347,20 @@ export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
     else exhausted++;
     totalUsed += a.used;
     totalRemaining += a.exhausted ? 0 : remaining;
+
+    const liveUsage = live
+      ? live[id] ?? { used: null, limit: null, remaining: null, plan: null, error: "未拉取到" }
+      : null;
+    if (liveUsage) {
+      if (liveUsage.error || liveUsage.used === null) {
+        liveUnavailable++;
+      } else {
+        liveHasAny = true;
+        liveUsed += liveUsage.used;
+        if (liveUsage.remaining !== null) liveRemaining += liveUsage.remaining;
+      }
+    }
+
     accounts.push({
       keyId: id,
       used: a.used,
@@ -348,7 +371,7 @@ export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
       ejectedUntil: a.ejectedUntil ? new Date(a.ejectedUntil).toISOString() : null,
       lastUsedAt: a.lastUsedAt ? new Date(a.lastUsedAt).toISOString() : null,
       lastError: a.lastError,
-      ...(live ? { live: live[id] ?? { used: null, limit: null, remaining: null, plan: null, error: "未拉取到" } } : {}),
+      ...(liveUsage ? { live: liveUsage } : {}),
     });
   }
 
@@ -363,6 +386,9 @@ export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
       totalUsed,
       totalRemaining,
       limitPerAccount: limit,
+      liveUsed: liveHasAny ? liveUsed : null,
+      liveRemaining: liveHasAny ? liveRemaining : null,
+      liveUnavailable,
     },
   };
 }
