@@ -26,11 +26,11 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (live = true) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/tavily-pool", {
+      const res = await fetch(`/api/tavily-pool${live ? "?live=1" : ""}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -46,7 +46,11 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
   }, [token]);
 
   useEffect(() => {
+    // 打开面板即拉取号池状态。load() 开头会同步 setLoading(true)，
+    // 这是面板初始化的必要副作用而非级联渲染，沿用项目既有约定豁免该规则。
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (open) load();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, load]);
 
   async function act(action: "reinstate" | "reset", keyId?: string) {
@@ -103,8 +107,8 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
             <span>账号 {t.accounts}</span>
             <span className="text-emerald-400">健康 {t.healthy}</span>
             <span className="text-rose-400">已剔除 {t.exhausted}</span>
-            <span>本月已用 {t.totalUsed}</span>
-            <span>剩余 ~{t.totalRemaining}</span>
+            <span>本月已用 {t.totalUsed}（本地计数）</span>
+            <span title="本地软计数估算，非 Tavily 官方值；官方真实额度见各账号「官方」行">剩余 ~{t.totalRemaining}</span>
           </div>
         )}
 
@@ -134,7 +138,7 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
                   <span className="text-[11px] text-muted tabular-nums">
-                    {a.used} / {a.limit}（剩 {a.remaining}）{a.failed > 0 ? ` · 失败 ${a.failed}` : ""}
+                    本地计数 {a.used} / {a.limit}（剩 {a.remaining}）{a.failed > 0 ? ` · 失败 ${a.failed}` : ""}
                   </span>
                   {a.exhausted && (
                     <button
@@ -146,6 +150,21 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                     </button>
                   )}
                 </div>
+                {a.live && (
+                  <p className="text-[11px] mt-1 tabular-nums">
+                    {a.live.error ? (
+                      <span className="text-amber-400/80">官方额度: 拉取失败（{a.live.error}）</span>
+                    ) : (
+                      <span className="text-sky-300/90">
+                        官方额度: {a.live.used ?? "—"}
+                        {" / "}
+                        {a.live.limit ?? "无限"}
+                        {a.live.remaining !== null ? `（剩 ${a.live.remaining}）` : ""}
+                        {a.live.plan ? ` · ${a.live.plan}` : ""}
+                      </span>
+                    )}
+                  </p>
+                )}
                 {a.lastError && <p className="text-[11px] text-muted/70 mt-1 truncate">{a.lastError}</p>}
               </div>
             );
@@ -157,11 +176,11 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="flex gap-2 mt-4">
           <button
-            onClick={load}
+            onClick={() => load(true)}
             disabled={loading || busy}
             className="flex-1 py-2 rounded-full text-xs font-medium text-muted border border-border hover:bg-card-hover transition-colors disabled:opacity-50"
           >
-            刷新
+            刷新（含官方额度）
           </button>
           <button
             onClick={() => act("reset")}

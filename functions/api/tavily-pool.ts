@@ -39,13 +39,14 @@ function applyEnv(env: Env): void {
   setKVStore(env.FIFA_MATCHES);
 }
 
-// GET：返回号池状态
+// GET：返回号池状态（?live=1 时附带 Tavily 官方真实用量）
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (!await validateAdmin(context.request, context.env)) {
     return new Response(JSON.stringify({ error: "未授权访问" }), { status: 401, headers: CORS });
   }
   applyEnv(context.env);
-  const status = await getPoolStatus();
+  const withLive = new URL(context.request.url).searchParams.get("live") === "1";
+  const status = await getPoolStatus(withLive);
   return new Response(JSON.stringify(status), { headers: CORS });
 };
 

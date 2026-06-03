@@ -230,18 +230,76 @@ export function isMonthlyExhaustion(bodyText: string): boolean {
   return /usage|credit|quota|monthly|plan limit|exhaust/i.test(bodyText);
 }
 
+// ---------- Tavily 官方真实用量(GET /usage)----------
+
+/** 单号的官方真实用量(来自 Tavily /usage,权威值)。 */
+export interface LiveUsage {
+  used: number | null;        // key.usage
+  limit: number | null;       // key.limit(unlimited 时为 null)
+  remaining: number | null;   // limit - used(任一为 null 则 null)
+  plan: string | null;        // account.current_plan
+  error: string | null;       // 拉取失败原因(该号单独失败不影响其它号)
+}
+
+const USAGE_TIMEOUT_MS = 8_000;
+
+/**
+ * 调 Tavily 官方 `GET /usage` 拿单个 key 的真实用量。这是权威数字(KV 软计数只是
+ * 本地估算)。按需触发(面板打开时),不在每次搜索时调用,避免反噬额度/限流。
+ */
+async function fetchOneUsage(apiKey: string): Promise<LiveUsage> {
+  const empty = (error: string | null): LiveUsage => ({
+    used: null, limit: null, remaining: null, plan: null, error,
+  });
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), USAGE_TIMEOUT_MS);
+    const res = await fetch("https://api.tavily.com/usage", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return empty(`HTTP ${res.status}`);
+    const data = await res.json() as {
+      key?: { usage?: number; limit?: number | null };
+      account?: { current_plan?: string };
+    };
+    const used = typeof data.key?.usage === "number" ? data.key.usage : null;
+    const limit = typeof data.key?.limit === "number" ? data.key.limit : null;
+    const remaining = used !== null && limit !== null ? Math.max(0, limit - used) : null;
+    return { used, limit, remaining, plan: data.account?.current_plan ?? null, error: null };
+  } catch (e) {
+    const isTimeout = e instanceof Error && e.name === "AbortError";
+    return empty(isTimeout ? "超时" : "网络错误");
+  }
+}
+
+/** 并发拉取号池内所有 key 的官方真实用量,返回 keyId → LiveUsage。 */
+export async function fetchRealUsage(): Promise<Record<string, LiveUsage>> {
+  const keys = getPoolKeys();
+  const out: Record<string, LiveUsage> = {};
+  await Promise.all(
+    keys.map(async (key) => {
+      const [id, usage] = await Promise.all([keyIdFor(key), fetchOneUsage(key)]);
+      out[id] = usage;
+    })
+  );
+  return out;
+}
+
 // ---------- 监控 / 手动控制 ----------
 
 export interface AccountStatus {
   keyId: string;
-  used: number;
+  used: number;          // KV 软计数(本地估算)
   limit: number;
-  remaining: number;
+  remaining: number;     // limit - 软计数
   failed: number;
   exhausted: boolean;
   ejectedUntil: string | null;
   lastUsedAt: string | null;
   lastError: string | null;
+  live?: LiveUsage;      // Tavily 官方真实用量(仅 withLive 时填充)
 }
 
 export interface PoolStatus {
@@ -256,11 +314,14 @@ export interface PoolStatus {
   };
 }
 
-export async function getPoolStatus(): Promise<PoolStatus> {
+export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
   const keys = getPoolKeys();
   const state = await loadNormalized();
   const cap = effectiveCap();
   const limit = monthlyLimit();
+
+  // 可选:并发拉取 Tavily 官方真实用量(权威值),与 KV 软计数并列展示。
+  const live = withLive ? await fetchRealUsage() : null;
 
   const accounts: AccountStatus[] = [];
   let healthy = 0;
@@ -287,6 +348,7 @@ export async function getPoolStatus(): Promise<PoolStatus> {
       ejectedUntil: a.ejectedUntil ? new Date(a.ejectedUntil).toISOString() : null,
       lastUsedAt: a.lastUsedAt ? new Date(a.lastUsedAt).toISOString() : null,
       lastError: a.lastError,
+      ...(live ? { live: live[id] ?? { used: null, limit: null, remaining: null, plan: null, error: "未拉取到" } } : {}),
     });
   }
 
