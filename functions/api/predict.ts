@@ -1,6 +1,7 @@
 import { predict } from "../../src/agents/orchestrator";
 import { setKVStore } from "../../src/agents/cache";
 import { setCalibrationStore } from "../../src/agents/calibration";
+import { isConfirmedFixture } from "../../src/data/teams";
 
 interface Env {
   FIFA_MATCHES: KVNamespace;
@@ -26,7 +27,8 @@ async function validateAdmin(request: Request, env: { ADMIN_PASSWORD: string; AD
   return token === expected;
 }
 
-const RATE_LIMIT = 10;
+// 端点本就 admin-only，此限流仅约束已鉴权管理员，主要防失控。放宽以支撑「一键预测」批量。
+const RATE_LIMIT = 120;
 const WINDOW_S = 60;
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
@@ -72,6 +74,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!matchId || !homeTeam || !awayTeam) {
     return new Response(
       JSON.stringify({ error: "matchId, homeTeam, and awayTeam are required" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  if (!isConfirmedFixture(homeTeam, awayTeam)) {
+    return new Response(
+      JSON.stringify({ error: "对阵未确定，暂不支持预测" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }

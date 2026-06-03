@@ -52,3 +52,16 @@ export const teamNames: Record<string, { cn: string; code: string }> = {
 export function getTeamDisplay(name: string): { cn: string; code: string } {
   return teamNames[name] || { cn: name, code: "" };
 }
+
+/**
+ * 是否为一支已确认的真实球队。teamNames 是 48 支参赛队的集合;淘汰赛占位名
+ * （"Group A 2nd"、"R32-1 Winner"、"3rd Place A/B/C/D/F" 等）不在其中。
+ */
+export function isRealTeam(name: string): boolean {
+  return name in teamNames;
+}
+
+/** 对阵双方是否都已确定（非占位符）。用于放行/屏蔽预测。 */
+export function isConfirmedFixture(homeTeam: string, awayTeam: string): boolean {
+  return isRealTeam(homeTeam) && isRealTeam(awayTeam);
+}

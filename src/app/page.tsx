@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { groups, stages } from "@/data/matches";
+import { isConfirmedFixture } from "@/data/teams";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
 import { usePredictions } from "@/hooks/usePredictions";
+import { useBatchPredict } from "@/hooks/useBatchPredict";
 import { useAdmin } from "@/contexts/AdminContext";
 
 function formatDate(dateStr: string): string {
@@ -20,10 +22,33 @@ function formatDate(dateStr: string): string {
 
 export default function SchedulePage() {
   const { matches, lastUpdated, isLive } = useMatches();
-  const predictions = usePredictions();
-  const { isAdmin, logout } = useAdmin();
+  const { predictions, refetch } = usePredictions();
+  const { isAdmin, token, logout } = useAdmin();
+  const { progress, run } = useBatchPredict();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
+
+  // 「一键预测」候选集:对阵已确定且待开赛的比赛。
+  const eligible = useMemo(
+    () => matches.filter((m) => m.status === "upcoming" && isConfirmedFixture(m.homeTeam, m.awayTeam)),
+    [matches]
+  );
+  // 补缺集:候选集中尚无已发布预测的。
+  const missing = useMemo(
+    () => eligible.filter((m) => !predictions[String(m.id)]),
+    [eligible, predictions]
+  );
+
+  async function handleBatchFill() {
+    await run(missing, { token, forceRefresh: false });
+    await refetch();
+  }
+
+  async function handleBatchForceAll() {
+    if (!window.confirm(`将对全部 ${eligible.length} 场已确定对阵强制重新预测（绕过缓存，消耗较多额度）。确认？`)) return;
+    await run(eligible, { token, forceRefresh: true });
+    await refetch();
+  }
 
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
@@ -75,6 +100,34 @@ export default function SchedulePage() {
               </button>
             )}
           </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <button
+                onClick={handleBatchFill}
+                disabled={progress.running || missing.length === 0}
+                className="text-xs font-medium px-3 min-h-[44px] py-2 rounded-full bg-highlight/10 text-highlight border border-highlight/30 hover:bg-highlight/20 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {progress.running
+                  ? `预测中 ${progress.done}/${progress.total}…`
+                  : missing.length === 0
+                    ? "已全部预测"
+                    : `一键预测（补 ${missing.length} 场）`}
+              </button>
+              <button
+                onClick={handleBatchForceAll}
+                disabled={progress.running || eligible.length === 0}
+                className="text-xs text-muted hover:text-foreground px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                强制全部重测（{eligible.length}）
+              </button>
+              {!progress.running && progress.total > 0 && (
+                <span className="text-xs text-muted">
+                  完成 {progress.done}/{progress.total}
+                  {progress.failed > 0 ? `，失败 ${progress.failed}` : ""}
+                </span>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             <FilterChips
               label="按阶段筛选"

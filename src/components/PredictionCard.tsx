@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { PredictionResult, Attribution } from "@/agents/types";
-import { getTeamDisplay } from "@/data/teams";
+import { getTeamDisplay, isConfirmedFixture } from "@/data/teams";
 import { useAdmin } from "@/contexts/AdminContext";
 
 function ProbabilityBar({ homeWin, draw, awayWin, homeTeam, awayTeam }: {
@@ -216,10 +216,14 @@ export function PredictionCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 对阵已确定（非淘汰赛占位符）才允许预测。
+  const confirmed = isConfirmedFixture(homeTeam, awayTeam);
+
   // 显示优先级：管理员本次刚生成的结果 > 已发布的结果（普通访客只读查看）
   const display = result ?? published ?? null;
 
   async function handlePredict(forceRefresh = false) {
+    if (!confirmed) return;
     setLoading(true);
     setError(null);
 
@@ -249,6 +253,16 @@ export function PredictionCard({
 
   if (!display && !error) {
     if (!isAdmin) return null;
+    if (!confirmed) {
+      return (
+        <div className="mt-2 w-full min-h-[44px] py-2.5 px-3 rounded-lg bg-card-hover/50 border border-border text-muted text-xs flex items-center justify-center gap-1.5">
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 9a1 1 0 011-1h.01a1 1 0 01.99 1v3a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+          </svg>
+          对阵未确定，暂不可预测
+        </div>
+      );
+    }
     return (
       <div>
         <button
@@ -383,7 +397,7 @@ export function PredictionCard({
 
       <MetaInfo result={display!} />
 
-      {isAdmin && (
+      {isAdmin && confirmed && (
         <button
           onClick={() => handlePredict(true)}
           disabled={loading}

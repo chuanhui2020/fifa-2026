@@ -7,6 +7,7 @@ import { squadAgent } from "./collectors/squad";
 import { runAttribution } from "./attribution/agent";
 import { getCached, setCache } from "./cache";
 import { matches } from "../data/matches";
+import { isConfirmedFixture } from "../data/teams";
 import { recordPrediction } from "./calibration";
 
 const collectors: CollectorAgent[] = [eloAgent, formAgent, marketAgent, squadAgent];
@@ -39,6 +40,11 @@ export async function predict(
   awayTeam: string,
   opts?: { forceRefresh?: boolean }
 ): Promise<PredictionResult> {
+  // 对阵未确定（淘汰赛占位符）不预测——避免 LLM 对占位名瞎猜。
+  if (!isConfirmedFixture(homeTeam, awayTeam)) {
+    throw new Error("对阵未确定，暂不支持预测");
+  }
+
   if (!opts?.forceRefresh) {
     const cached = await getCached(matchId);
     if (cached) return cached;

@@ -9,6 +9,7 @@ import { marketAgent } from "../../src/agents/collectors/market";
 import { squadAgent } from "../../src/agents/collectors/squad";
 import { runAttribution } from "../../src/agents/attribution/agent";
 import { getCached, setCache } from "../../src/agents/cache";
+import { isConfirmedFixture } from "../../src/data/teams";
 
 interface Env {
   FIFA_MATCHES: KVNamespace;
@@ -61,6 +62,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   const { matchId, homeTeam, awayTeam, forceRefresh } = body;
+  if (matchId && homeTeam && awayTeam && !isConfirmedFixture(homeTeam, awayTeam)) {
+    return new Response(
+      JSON.stringify({ error: "对阵未确定，暂不支持预测" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
   if (!matchId || !homeTeam || !awayTeam) {
     return new Response(
       JSON.stringify({ error: "matchId, homeTeam, and awayTeam are required" }),
