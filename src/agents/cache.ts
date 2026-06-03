@@ -32,6 +32,11 @@ export function setKVStore(kv: KVStore): void {
   kvStore = kv;
 }
 
+/** Shared KV handle, reused by the Tavily key pool. Null in local dev without a binding. */
+export function getKVStore(): KVStore | null {
+  return kvStore;
+}
+
 function getCacheKey(type: string, id: string): string {
   return `${type}:${id}`;
 }

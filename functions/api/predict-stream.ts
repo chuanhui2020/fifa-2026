@@ -15,6 +15,9 @@ interface Env {
   FIFA_MATCHES: KVNamespace;
   DEEPSEEK_API_KEY: string;
   TAVILY_API_KEY: string;
+  TAVILY_API_KEYS?: string;
+  TAVILY_MONTHLY_LIMIT?: string;
+  TAVILY_SAFETY_MARGIN?: string;
   ODDS_API_KEY: string;
   ADMIN_PASSWORD: string;
   ADMIN_SECRET: string;
@@ -48,6 +51,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   process.env.DEEPSEEK_API_KEY = context.env.DEEPSEEK_API_KEY;
   process.env.TAVILY_API_KEY = context.env.TAVILY_API_KEY;
   process.env.ODDS_API_KEY = context.env.ODDS_API_KEY;
+  if (context.env.TAVILY_API_KEYS) process.env.TAVILY_API_KEYS = context.env.TAVILY_API_KEYS;
+  if (context.env.TAVILY_MONTHLY_LIMIT) process.env.TAVILY_MONTHLY_LIMIT = context.env.TAVILY_MONTHLY_LIMIT;
+  if (context.env.TAVILY_SAFETY_MARGIN) process.env.TAVILY_SAFETY_MARGIN = context.env.TAVILY_SAFETY_MARGIN;
   setKVStore(context.env.FIFA_MATCHES);
   setCalibrationStore(context.env.FIFA_MATCHES);
 

@@ -1,6 +1,14 @@
 import { Type, type Static } from "@earendil-works/pi-ai";
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { getSnapshot, setSnapshot, TAVILY_CACHE_TTL } from "../cache";
+import {
+  acquireKey,
+  getPoolKeys,
+  reportSuccess,
+  reportExhausted,
+  reportTransient,
+  isMonthlyExhaustion,
+} from "./tavily-pool";
 
 const WebSearchParams = Type.Object({
   query: Type.String({ description: "The search query to find relevant information" }),
@@ -81,24 +89,10 @@ export function createWebSearchTool(
       _toolCallId: string,
       params: WebSearchParamsType
     ): Promise<AgentToolResult<TavilyResponse>> {
-      const apiKey = process.env.TAVILY_API_KEY;
-      if (!apiKey) {
-        searchRecords.push({
-          query: params.query,
-          resultCount: 0,
-          sourceUrls: [],
-          success: false,
-        });
-        return {
-          content: [{ type: "text", text: "Web search unavailable (no API key). You MUST set confidence to 0.2 or lower and clearly state that no real-time data was available. Do NOT invent or hallucinate data." }],
-          details: { results: [] },
-        };
-      }
-
       const depth = params.search_depth || "basic";
       const cacheKey = queryCacheKey(params.query, depth);
 
-      // Serve from the query cache when present (unless force-refresh bypasses it).
+      // 1) 查询级缓存优先(命中不消耗任何账号)。
       if (!opts.bypassCache) {
         const hit = await getSnapshot<TavilyResponse>("tvly", cacheKey);
         if (hit && hit.results.length > 0) {
@@ -113,76 +107,97 @@ export function createWebSearchTool(
         }
       }
 
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
-
-        const response = await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            api_key: apiKey,
-            query: params.query,
-            search_depth: depth,
-            max_results: params.max_results || 5,
-            include_answer: true,
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          searchRecords.push({
-            query: params.query,
-            resultCount: 0,
-            sourceUrls: [],
-            success: false,
-          });
-          return {
-            content: [{ type: "text", text: `Web search failed (HTTP ${response.status}). You MUST set confidence to 0.3 or lower and note this data gap. Do NOT invent data.` }],
-            details: { results: [] },
-          };
-        }
-
-        const data: TavilyResponse = await response.json();
-        const sourceUrls = data.results.map((r) => r.url);
-
-        searchRecords.push({
-          query: params.query,
-          resultCount: data.results.length,
-          sourceUrls,
-          success: data.results.length > 0,
-        });
-
-        if (data.results.length === 0) {
-          return {
-            content: [{ type: "text", text: `Search for "${params.query}" returned no results. You MUST set confidence to 0.3 or lower and note this data gap.` }],
-            details: data,
-          };
-        }
-
-        // Cache only successful, non-empty responses so errors/timeouts retry next time.
-        await setSnapshot("tvly", cacheKey, data, TAVILY_CACHE_TTL);
-
-        const text = formatResults(data);
+      // 2) 号池为空 → 报数据缺口。
+      if (getPoolKeys().length === 0) {
+        searchRecords.push({ query: params.query, resultCount: 0, sourceUrls: [], success: false });
         return {
-          content: [{ type: "text", text }],
-          details: data,
-        };
-      } catch (e) {
-        const isTimeout = e instanceof Error && e.name === "AbortError";
-        searchRecords.push({
-          query: params.query,
-          resultCount: 0,
-          sourceUrls: [],
-          success: false,
-        });
-        return {
-          content: [{ type: "text", text: `Web search failed (${isTimeout ? "timeout" : "network error"}). You MUST set confidence to 0.3 or lower and note this data gap. Do NOT invent data.` }],
+          content: [{ type: "text", text: "Web search unavailable (no API key). You MUST set confidence to 0.2 or lower and clearly state that no real-time data was available. Do NOT invent or hallucinate data." }],
           details: { results: [] },
         };
       }
+
+      // 3) 跨账号失败转移:逐号尝试,瞬时失败/限流换号,月度耗尽剔除后换号。
+      const maxAttempts = Math.min(getPoolKeys().length, 3);
+      const tried = new Set<string>();
+      let acquiredAny = false;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const acq = await acquireKey(tried);
+        if (!acq) break;
+        acquiredAny = true;
+        tried.add(acq.keyId);
+        const { keyId, apiKey } = acq;
+
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+
+          const response = await fetch("https://api.tavily.com/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              api_key: apiKey,
+              query: params.query,
+              search_depth: depth,
+              max_results: params.max_results || 5,
+              include_answer: true,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            const bodyText = await response.text().catch(() => "");
+            // 429 + 额度关键字 → 月度耗尽,剔除该号;其余(含瞬时限流)只记失败。两种都换号重试。
+            if (response.status === 429 && isMonthlyExhaustion(bodyText)) {
+              await reportExhausted(keyId, "HTTP 429 额度耗尽");
+            } else {
+              await reportTransient(keyId, `HTTP ${response.status}`);
+            }
+            continue;
+          }
+
+          const data: TavilyResponse = await response.json();
+
+          // 调用成功即消耗一次额度(即便 0 结果)。
+          await reportSuccess(keyId);
+
+          searchRecords.push({
+            query: params.query,
+            resultCount: data.results.length,
+            sourceUrls: data.results.map((r) => r.url),
+            success: data.results.length > 0,
+          });
+
+          if (data.results.length === 0) {
+            return {
+              content: [{ type: "text", text: `Search for "${params.query}" returned no results. You MUST set confidence to 0.3 or lower and note this data gap.` }],
+              details: data,
+            };
+          }
+
+          // 仅成功且非空才写查询缓存。
+          await setSnapshot("tvly", cacheKey, data, TAVILY_CACHE_TTL);
+          return { content: [{ type: "text", text: formatResults(data) }], details: data };
+        } catch (e) {
+          const isTimeout = e instanceof Error && e.name === "AbortError";
+          await reportTransient(keyId, isTimeout ? "timeout" : "network error");
+          continue;
+        }
+      }
+
+      // 4) 全部尝试失败。
+      searchRecords.push({ query: params.query, resultCount: 0, sourceUrls: [], success: false });
+      return {
+        content: [{
+          type: "text",
+          text: !acquiredAny
+            ? "所有 Tavily 账号本月额度已用尽，暂时无法搜索。You MUST set confidence to 0.2 or lower and clearly state no real-time data was available. Do NOT invent data."
+            : "Web search failed after retrying across accounts. You MUST set confidence to 0.3 or lower and note this data gap. Do NOT invent data.",
+        }],
+        details: { results: [] },
+      };
     },
   };
 }

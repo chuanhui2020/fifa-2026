@@ -48,8 +48,10 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 | the-odds-api.com | 赔率数据（market agent 主路径，确定性 devig） | `ODDS_API_KEY` | 否（无则回退 LLM） | 免费 500 次/月 |
 | eloratings.net | Elo 评分（elo agent 主路径，直连 World.tsv） | 无需 key | 否（无则回退 LLM） | 免费 |
 | DeepSeek API | LLM 推理（form/squad agent + attribution 归因） | `DEEPSEEK_API_KEY` | 是 | 按 token 计费 |
-| Tavily | 网页搜索（form/squad agent + 回退路径） | `TAVILY_API_KEY` | 是 | 免费 1000 次/月 |
-| Cloudflare KV | 缓存 + 校准数据持久化 | `FIFA_MATCHES`(binding) | 是 | Pages 免费额度内 |
+| Tavily | 网页搜索（form/squad agent + 回退路径） | `TAVILY_API_KEYS`（逗号分隔号池，回退 `TAVILY_API_KEY`） | 是 | 免费 1000 次/月·号 |
+| Cloudflare KV | 缓存 + 校准数据持久化 + 号池状态 | `FIFA_MATCHES`(binding) | 是 | Pages 免费额度内 |
+
+> **Tavily 号池**：`TAVILY_API_KEYS` 配多个 key 时按 least-used 均匀分摊；每号本月用量记于 KV（`tavily:pool`），达上限（默认 1000，留安全余量 `TAVILY_SAFETY_MARGIN`=50）或遇额度型 429 自动剔除到**下月 2 号**（UTC+8），下月初计数清零。瞬时 429 只换号重试、不剔除。监控：admin 端点 `/api/tavily-pool`（GET 状态 / POST reinstate·reset）+ 前端「号池监控」面板。可选 `TAVILY_MONTHLY_LIMIT`、`TAVILY_SAFETY_MARGIN` 覆盖默认值。
 
 ### AI 模型
 

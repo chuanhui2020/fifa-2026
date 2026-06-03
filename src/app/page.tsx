@@ -5,6 +5,7 @@ import { groups, stages } from "@/data/matches";
 import { isConfirmedFixture } from "@/data/teams";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
+import { TavilyPoolModal } from "@/components/TavilyPoolModal";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
 import { usePredictions } from "@/hooks/usePredictions";
@@ -27,6 +28,7 @@ export default function SchedulePage() {
   const { progress, run } = useBatchPredict();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const [poolOpen, setPoolOpen] = useState(false);
 
   // 「一键预测」候选集:对阵已确定且待开赛的比赛。
   const eligible = useMemo(
@@ -120,6 +122,12 @@ export default function SchedulePage() {
               >
                 强制全部重测（{eligible.length}）
               </button>
+              <button
+                onClick={() => setPoolOpen(true)}
+                className="text-xs text-muted hover:text-foreground px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150"
+              >
+                号池监控
+              </button>
               {!progress.running && progress.total > 0 && (
                 <span className="text-xs text-muted">
                   完成 {progress.done}/{progress.total}
@@ -194,6 +202,8 @@ export default function SchedulePage() {
           )}
         </p>
       </footer>
+
+      {isAdmin && <TavilyPoolModal open={poolOpen} onClose={() => setPoolOpen(false)} />}
     </div>
   );
 }
