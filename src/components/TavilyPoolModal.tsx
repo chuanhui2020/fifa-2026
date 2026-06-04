@@ -19,12 +19,15 @@ function fmtTime(iso: string | null): string {
   }
 }
 
+type PostAction = "add" | "pause" | "resume" | "delete" | "reinstate";
+
 export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { token } = useAdmin();
   const [status, setStatus] = useState<PoolStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [newKey, setNewKey] = useState("");
 
   const load = useCallback(async (live = true) => {
     setLoading(true);
@@ -53,26 +56,44 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, load]);
 
-  async function act(action: "reinstate" | "reset", keyId?: string) {
-    if (action === "reset" && !window.confirm("确定清零所有账号的计数并解封？仅应急使用。")) return;
+  /** 通用 POST：成功后用返回的最新状态覆盖（不含官方额度，刷新按钮再带）。 */
+  async function post(action: PostAction, payload?: { keyId?: string; apiKey?: string }): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/tavily-pool", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action, keyId }),
+        body: JSON.stringify({ action, ...payload }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || `操作失败（${res.status}）`);
       }
       setStatus(await res.json());
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败");
+      return false;
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleAdd() {
+    const key = newKey.trim();
+    if (!key) return;
+    const ok = await post("add", { apiKey: key });
+    if (ok) {
+      setNewKey("");
+      // 新增成功后重新拉取以带上官方额度展示。
+      load();
+    }
+  }
+
+  async function handleDelete(keyId: string, preview: string) {
+    if (!window.confirm(`确定删除账号 …${preview}？将从 KV 彻底移除，不可恢复。`)) return;
+    await post("delete", { keyId });
   }
 
   if (!open) return null;
@@ -84,7 +105,7 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Tavily 号池监控"
+      aria-label="Tavily 号池管理"
       onClick={onClose}
     >
       <div
@@ -92,7 +113,7 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-foreground">Tavily 号池监控</h2>
+          <h2 className="text-base font-semibold text-foreground">Tavily 号池管理</h2>
           <button
             onClick={onClose}
             aria-label="关闭"
@@ -106,6 +127,7 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted mb-3">
             <span>账号 {t.accounts}</span>
             <span className="text-emerald-400">健康 {t.healthy}</span>
+            {t.paused > 0 && <span className="text-amber-400">已暂停 {t.paused}</span>}
             <span className="text-rose-400">已剔除 {t.exhausted}</span>
             {t.liveUsed !== null ? (
               <>
@@ -121,6 +143,28 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         )}
 
+        {/* 新增账号 */}
+        <div className="flex gap-2 mb-3">
+          <input
+            type="password"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !busy && newKey.trim()) handleAdd();
+            }}
+            placeholder="粘贴 Tavily API Key 新增账号"
+            autoComplete="off"
+            className="flex-1 min-w-0 px-3 py-2 rounded-full text-xs bg-background border border-border text-foreground placeholder:text-muted focus:outline-none focus:border-highlight/50"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={busy || !newKey.trim()}
+            className="py-2 px-4 rounded-full text-xs font-medium text-highlight border border-highlight/30 hover:bg-highlight/10 transition-colors disabled:opacity-50"
+          >
+            添加
+          </button>
+        </div>
+
         {error && <p className="text-xs text-rose-400 mb-2" role="alert">{error}</p>}
         {loading && <p className="text-xs text-muted mb-2">加载中…</p>}
 
@@ -135,11 +179,20 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
               officialUsed !== null && officialLimit && officialLimit > 0
                 ? Math.min(100, (officialUsed / officialLimit) * 100)
                 : 0;
+            const barColor = a.paused
+              ? "bg-amber-400"
+              : a.exhausted
+                ? "bg-rose-400"
+                : "bg-emerald-400";
             return (
               <div key={a.keyId} className="rounded-xl border border-border p-3">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-mono text-xs text-foreground/80">#{a.keyId}</span>
-                  {a.exhausted ? (
+                  <span className="font-mono text-xs text-foreground/80">
+                    #{a.keyId} <span className="text-muted">…{a.keyPreview}</span>
+                  </span>
+                  {a.paused ? (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">已暂停</span>
+                  ) : a.exhausted ? (
                     <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400">
                       已剔除 · 解封 {fmtTime(a.ejectedUntil)}
                     </span>
@@ -148,13 +201,10 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                   )}
                 </div>
                 <div className="w-full h-2 rounded-full bg-border overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${a.exhausted ? "bg-rose-400" : "bg-emerald-400"}`}
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                 </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[11px] tabular-nums">
+                <div className="flex items-center justify-between mt-1.5 gap-2">
+                  <span className="text-[11px] tabular-nums min-w-0 truncate">
                     {a.live?.error ? (
                       <span className="text-amber-400/80">额度未知（{a.live.error}）</span>
                     ) : officialUsed !== null ? (
@@ -167,22 +217,38 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
                       <span className="text-muted">额度加载中…</span>
                     )}
                   </span>
-                  {a.exhausted && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {a.exhausted && (
+                      <button
+                        onClick={() => post("reinstate", { keyId: a.keyId })}
+                        disabled={busy}
+                        className="text-[11px] text-highlight hover:underline disabled:opacity-50"
+                      >
+                        解封
+                      </button>
+                    )}
                     <button
-                      onClick={() => act("reinstate", a.keyId)}
+                      onClick={() => post(a.paused ? "resume" : "pause", { keyId: a.keyId })}
                       disabled={busy}
-                      className="text-[11px] text-highlight hover:underline disabled:opacity-50"
+                      className="text-[11px] text-muted hover:text-foreground hover:underline disabled:opacity-50"
                     >
-                      解封
+                      {a.paused ? "恢复" : "暂停"}
                     </button>
-                  )}
+                    <button
+                      onClick={() => handleDelete(a.keyId, a.keyPreview)}
+                      disabled={busy}
+                      className="text-[11px] text-rose-400 hover:underline disabled:opacity-50"
+                    >
+                      删除
+                    </button>
+                  </div>
                 </div>
                 {a.lastError && <p className="text-[11px] text-muted/70 mt-1 truncate">{a.lastError}</p>}
               </div>
             );
           })}
           {!loading && status && status.accounts.length === 0 && (
-            <p className="text-xs text-muted">未配置任何 Tavily 账号（设置 TAVILY_API_KEYS）。</p>
+            <p className="text-xs text-muted">号池为空。粘贴 Tavily API Key 新增账号即可启用网页搜索。</p>
           )}
         </div>
 
@@ -193,13 +259,6 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
             className="flex-1 py-2 rounded-full text-xs font-medium text-muted border border-border hover:bg-card-hover transition-colors disabled:opacity-50"
           >
             刷新（含官方额度）
-          </button>
-          <button
-            onClick={() => act("reset")}
-            disabled={busy}
-            className="py-2 px-3 rounded-full text-xs font-medium text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
-          >
-            计数清零
           </button>
         </div>
       </div>

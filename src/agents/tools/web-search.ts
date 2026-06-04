@@ -3,7 +3,7 @@ import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { getSnapshot, setSnapshot, TAVILY_CACHE_TTL } from "../cache";
 import {
   acquireKey,
-  getPoolKeys,
+  poolSize,
   reportSuccess,
   reportExhausted,
   reportTransient,
@@ -108,7 +108,8 @@ export function createWebSearchTool(
       }
 
       // 2) 号池为空 → 报数据缺口。
-      if (getPoolKeys().length === 0) {
+      const size = await poolSize();
+      if (size === 0) {
         searchRecords.push({ query: params.query, resultCount: 0, sourceUrls: [], success: false });
         return {
           content: [{ type: "text", text: "Web search unavailable (no API key). You MUST set confidence to 0.2 or lower and clearly state that no real-time data was available. Do NOT invent or hallucinate data." }],
@@ -117,7 +118,7 @@ export function createWebSearchTool(
       }
 
       // 3) 跨账号失败转移:逐号尝试,瞬时失败/限流换号,月度耗尽剔除后换号。
-      const maxAttempts = Math.min(getPoolKeys().length, 3);
+      const maxAttempts = Math.min(size, 3);
       const tried = new Set<string>();
       let acquiredAny = false;
 

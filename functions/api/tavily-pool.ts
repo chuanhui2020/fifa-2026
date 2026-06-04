@@ -1,10 +1,14 @@
 import { setKVStore } from "../../src/agents/cache";
-import { getPoolStatus, reinstate, resetCounters } from "../../src/agents/tools/tavily-pool";
+import {
+  getPoolStatus,
+  reinstate,
+  addAccount,
+  setPaused,
+  deleteAccount,
+} from "../../src/agents/tools/tavily-pool";
 
 interface Env {
   FIFA_MATCHES: KVNamespace;
-  TAVILY_API_KEY: string;
-  TAVILY_API_KEYS?: string;
   TAVILY_MONTHLY_LIMIT?: string;
   TAVILY_SAFETY_MARGIN?: string;
   ADMIN_PASSWORD: string;
@@ -32,8 +36,6 @@ async function validateAdmin(request: Request, env: { ADMIN_PASSWORD: string; AD
 }
 
 function applyEnv(env: Env): void {
-  process.env.TAVILY_API_KEY = env.TAVILY_API_KEY;
-  if (env.TAVILY_API_KEYS) process.env.TAVILY_API_KEYS = env.TAVILY_API_KEYS;
   if (env.TAVILY_MONTHLY_LIMIT) process.env.TAVILY_MONTHLY_LIMIT = env.TAVILY_MONTHLY_LIMIT;
   if (env.TAVILY_SAFETY_MARGIN) process.env.TAVILY_SAFETY_MARGIN = env.TAVILY_SAFETY_MARGIN;
   setKVStore(env.FIFA_MATCHES);
@@ -50,26 +52,59 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   return new Response(JSON.stringify(status), { headers: CORS });
 };
 
-// POST：{action:"reinstate", keyId?} 手动解封 | {action:"reset"} 清零
+// POST：账号管理
+//   {action:"add", apiKey}        新增账号（校验后原文存入 KV）
+//   {action:"pause", keyId}       暂停（不派发）
+//   {action:"resume", keyId}      恢复
+//   {action:"delete", keyId}      删除（从 KV 彻底移除）
+//   {action:"reinstate", keyId?}  解封并清零软计数（keyId 省略则全部）
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!await validateAdmin(context.request, context.env)) {
     return new Response(JSON.stringify({ error: "未授权访问" }), { status: 401, headers: CORS });
   }
   applyEnv(context.env);
 
-  let body: { action?: string; keyId?: string };
+  let body: { action?: string; keyId?: string; apiKey?: string };
   try {
     body = await context.request.json();
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: CORS });
   }
 
-  if (body.action === "reinstate") {
-    await reinstate(body.keyId);
-  } else if (body.action === "reset") {
-    await resetCounters();
-  } else {
-    return new Response(JSON.stringify({ error: "未知操作（action 应为 reinstate 或 reset）" }), { status: 400, headers: CORS });
+  switch (body.action) {
+    case "add": {
+      const result = await addAccount(body.apiKey || "");
+      if (!result.ok) {
+        return new Response(JSON.stringify({ error: result.error || "新增失败" }), { status: 400, headers: CORS });
+      }
+      break;
+    }
+    case "pause":
+      if (!body.keyId) {
+        return new Response(JSON.stringify({ error: "缺少 keyId" }), { status: 400, headers: CORS });
+      }
+      await setPaused(body.keyId, true);
+      break;
+    case "resume":
+      if (!body.keyId) {
+        return new Response(JSON.stringify({ error: "缺少 keyId" }), { status: 400, headers: CORS });
+      }
+      await setPaused(body.keyId, false);
+      break;
+    case "delete":
+      if (!body.keyId) {
+        return new Response(JSON.stringify({ error: "缺少 keyId" }), { status: 400, headers: CORS });
+      }
+      await deleteAccount(body.keyId);
+      break;
+    case "reinstate":
+      await reinstate(body.keyId);
+      break;
+    default:
+      return new Response(
+        JSON.stringify({ error: "未知操作（action 应为 add / pause / resume / delete / reinstate）" }),
+        { status: 400, headers: CORS }
+      );
   }
 
   const status = await getPoolStatus();

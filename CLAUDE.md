@@ -1,5 +1,7 @@
 # FIFA 2026 赛程网站
 
+> **沟通约定**：始终用中文回答，思考过程与结果说明也一律用中文。
+
 ## 项目概述
 
 FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后续将接入 agent 系统计算概率。
@@ -48,10 +50,10 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 | the-odds-api.com | 赔率数据（market agent 主路径，确定性 devig） | `ODDS_API_KEY` | 否（无则回退 LLM） | 免费 500 次/月 |
 | eloratings.net | Elo 评分（elo agent 主路径，直连 World.tsv） | 无需 key | 否（无则回退 LLM） | 免费 |
 | DeepSeek API | LLM 推理（form/squad agent + attribution 归因） | `DEEPSEEK_API_KEY` | 是 | 按 token 计费 |
-| Tavily | 网页搜索（form/squad agent + 回退路径） | `TAVILY_API_KEYS`（逗号分隔号池，回退 `TAVILY_API_KEY`） | 是 | 免费 1000 次/月·号 |
-| Cloudflare KV | 缓存 + 校准数据持久化 + 号池状态 | `FIFA_MATCHES`(binding) | 是 | Pages 免费额度内 |
+| Tavily | 网页搜索（form/squad agent + 回退路径） | 无需 key 环境变量（key 存 KV，经「号池管理」界面增删） | 是 | 免费 1000 次/月·号 |
+| Cloudflare KV | 缓存 + 校准数据持久化 + 号池（含 key 原文） | `FIFA_MATCHES`(binding) | 是 | Pages 免费额度内 |
 
-> **Tavily 号池**：`TAVILY_API_KEYS` 配多个 key 时按 least-used 均匀分摊；每号本月用量记于 KV（`tavily:pool`），达上限（默认 1000，留安全余量 `TAVILY_SAFETY_MARGIN`=50）或遇额度型 429 自动剔除到**下月 2 号**（UTC+8），下月初计数清零。瞬时 429 只换号重试、不剔除。监控：admin 端点 `/api/tavily-pool`（GET 状态 / POST reinstate·reset）+ 前端「号池监控」面板。可选 `TAVILY_MONTHLY_LIMIT`、`TAVILY_SAFETY_MARGIN` 覆盖默认值。
+> **Tavily 号池**：所有 key 统一存于 KV（单键 `tavily:pool`，含 key 原文 + 元数据），**不再读任何环境变量**。账号经「号池管理」界面增删：新增（粘贴 key，调官方 `/usage` 校验后入库）、暂停（不派发、保留计数）、删除（从 KV 彻底移除）。派发按 least-used 在健康号间均匀分摊；每号本月用量记于 KV，达上限（默认 1000，留安全余量 `TAVILY_SAFETY_MARGIN`=50）或遇额度型 429 自动剔除到**下月 2 号**（UTC+8），下月初计数清零。瞬时 429 只换号重试、不剔除。解封会顺带清零该号软计数。admin 端点 `/api/tavily-pool`（GET 状态，`?live=1` 附官方真实额度 / POST `add`·`pause`·`resume`·`delete`·`reinstate`）+ 前端「号池管理」面板。key 原文永不返回前端（仅暴露 keyId 哈希 + 末 4 位）。可选 `TAVILY_MONTHLY_LIMIT`、`TAVILY_SAFETY_MARGIN` 覆盖默认值。
 
 ### AI 模型
 

@@ -126,7 +126,7 @@ export default function SchedulePage() {
                 onClick={() => setPoolOpen(true)}
                 className="text-xs text-muted hover:text-foreground px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150"
               >
-                号池监控
+                号池管理
               </button>
               {!progress.running && progress.total > 0 && (
                 <span className="text-xs text-muted">
