@@ -125,6 +125,15 @@ async function loadNormalized(): Promise<PoolState> {
   if (!state) state = { month, accounts: {} };
   if (!state.accounts) state.accounts = {};
 
+  // 迁移:剔除旧版遗留的「幽灵号」——旧设计只存 keyId 哈希、原始 key 在环境变量里,
+  // 这些条目没有 apiKey,在纯 KV 架构下无法派发也无法管理,直接清掉。
+  for (const id of Object.keys(state.accounts)) {
+    const a = state.accounts[id];
+    if (!a || typeof a.apiKey !== "string" || a.apiKey.length === 0) {
+      delete state.accounts[id];
+    }
+  }
+
   if (state.month !== month) {
     // 新账务月:计数清零;剔除状态按 ejectedUntil 重算(被剔除到下月 2 号的号本月初仍剔除)
     for (const id of Object.keys(state.accounts)) {
