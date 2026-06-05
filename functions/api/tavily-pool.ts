@@ -47,8 +47,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(JSON.stringify({ error: "未授权访问" }), { status: 401, headers: CORS });
   }
   applyEnv(context.env);
-  const withLive = new URL(context.request.url).searchParams.get("live") === "1";
-  const status = await getPoolStatus(withLive);
+  const params = new URL(context.request.url).searchParams;
+  const withLive = params.get("live") === "1";
+  // ?refresh=1：强制绕过 5 分钟 usage 缓存现拉官方额度（刷新按钮）；否则走缓存。
+  const forceRefresh = params.get("refresh") === "1";
+  const status = await getPoolStatus(withLive, forceRefresh);
   return new Response(JSON.stringify(status), { headers: CORS });
 };
 

@@ -1,4 +1,4 @@
-import { getKVStore } from "../cache";
+import { getKVStore, getSnapshot, setSnapshot, TAVILY_USAGE_TTL } from "../cache";
 
 /**
  * Tavily 多账号号池:把搜索调用均匀分摊到 N 个 key 上,跟踪每号本月用量,
@@ -277,13 +277,34 @@ async function fetchOneUsage(apiKey: string): Promise<LiveUsage> {
   }
 }
 
-/** 并发拉取号池内所有 key 的官方真实用量,返回 keyId → LiveUsage。 */
-export async function fetchRealUsage(): Promise<Record<string, LiveUsage>> {
+const USAGE_CACHE_NS = "tvly-usage";
+
+/**
+ * 并发拉取号池内所有 key 的官方真实用量,返回 keyId → LiveUsage。
+ *
+ * 按 keyId 粒度缓存(命名空间 tvly-usage,TTL 5 分钟):自动加载时命中缓存就不打 Tavily
+ * (面板反复开关/增删回拉都省下 N 次 /usage 请求,也免去等并发超时)。这层缓存纯供面板
+ * 展示——live 用量从不参与调度(选号只看 KV 软计数),所以晚几十秒刷新无任何副作用。
+ * 只缓存成功结果,错误结果不写(否则瞬时故障会被钉住 5 分钟)。
+ * forceRefresh=true 跳过读、强制现拉(刷新按钮用),拉到的成功值仍回写缓存。
+ */
+export async function fetchRealUsage(forceRefresh = false): Promise<Record<string, LiveUsage>> {
   const state = await loadNormalized();
   const out: Record<string, LiveUsage> = {};
   await Promise.all(
     Object.entries(state.accounts).map(async ([id, a]) => {
-      out[id] = await fetchOneUsage(a.apiKey);
+      if (!forceRefresh) {
+        const cached = await getSnapshot<LiveUsage>(USAGE_CACHE_NS, id);
+        if (cached) {
+          out[id] = cached;
+          return;
+        }
+      }
+      const usage = await fetchOneUsage(a.apiKey);
+      out[id] = usage;
+      if (usage.error === null && usage.used !== null) {
+        await setSnapshot(USAGE_CACHE_NS, id, usage, TAVILY_USAGE_TTL);
+      }
     })
   );
   return out;
@@ -324,13 +345,14 @@ export interface PoolStatus {
   };
 }
 
-export async function getPoolStatus(withLive = false): Promise<PoolStatus> {
+export async function getPoolStatus(withLive = false, forceRefresh = false): Promise<PoolStatus> {
   const state = await loadNormalized();
   const cap = effectiveCap();
   const limit = monthlyLimit();
 
   // 可选:并发拉取 Tavily 官方真实用量(权威值),与 KV 软计数并列展示。
-  const live = withLive ? await fetchRealUsage() : null;
+  // 默认走 5 分钟 KV 缓存(面板自动加载/增删后回拉);forceRefresh 时强拉最新(刷新按钮)。
+  const live = withLive ? await fetchRealUsage(forceRefresh) : null;
 
   const accounts: AccountStatus[] = [];
   let healthy = 0;

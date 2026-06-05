@@ -14,10 +14,14 @@ const TTL = {
   oddsSnapshot: 3 * 60 * 60 * 1000, // 3 hours - whole-tournament odds snapshot; long TTL keeps API calls within the free quota
   eloRatings: 24 * 60 * 60 * 1000,  // 24 hours - Elo changes only on international match days
   tavily: 12 * 60 * 60 * 1000,      // 12 hours - web-search results keyed by query; dedups the same team across matches/re-predictions
+  tavilyUsage: 5 * 60 * 1000,       // 5 minutes - official /usage per key for the pool panel; monitoring-only, never feeds scheduling
 } as const;
 
 /** TTL for the query-level Tavily cache; exported so web-search.ts can pass it to setSnapshot. */
 export const TAVILY_CACHE_TTL = TTL.tavily;
+
+/** TTL for the per-key Tavily /usage snapshot shown in the pool panel. */
+export const TAVILY_USAGE_TTL = TTL.tavilyUsage;
 
 const memCache = new Map<string, CacheEntry<unknown>>();
 

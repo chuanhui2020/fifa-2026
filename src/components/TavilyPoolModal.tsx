@@ -29,11 +29,14 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
   const [busy, setBusy] = useState(false);
   const [newKey, setNewKey] = useState("");
 
-  const load = useCallback(async (live = true) => {
+  // forceRefresh=true 时附带 refresh=1，让后端绕过 5 分钟 usage 缓存现拉官方额度（刷新按钮用）；
+  // 自动加载（开面板、增删后回拉）省略，走缓存即可。
+  const load = useCallback(async (live = true, forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tavily-pool${live ? "?live=1" : ""}`, {
+      const qs = live ? `?live=1${forceRefresh ? "&refresh=1" : ""}` : "";
+      const res = await fetch(`/api/tavily-pool${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -254,11 +257,11 @@ export function TavilyPoolModal({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="flex gap-2 mt-4">
           <button
-            onClick={() => load(true)}
+            onClick={() => load(true, true)}
             disabled={loading || busy}
             className="flex-1 py-2 rounded-full text-xs font-medium text-muted border border-border hover:bg-card-hover transition-colors disabled:opacity-50"
           >
-            刷新（含官方额度）
+            刷新
           </button>
         </div>
       </div>
