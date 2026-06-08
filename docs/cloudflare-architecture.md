@@ -47,7 +47,7 @@
 
 | 组件 | 名称 | 配置文件 | 部署方式 | 职责 |
 |---|---|---|---|---|
-| **Pages** | `fifa-2026` | `wrangler.toml` | git push master 自动 / `npm run deploy` | 静态前端 + `functions/api/*` 后端接口 |
+| **Pages** | `fifa-2026` | `wrangler.toml` | `npm run deploy`(**未连 git，不自动部署**） | 静态前端 + `functions/api/*` 后端接口 |
 | **Worker** | `fifa-2026-cron` | `worker/wrangler.toml` | `npm run worker:deploy`(**不随 git 自动部署**) | Cron 定时抓实时比分写 KV |
 | **KV** | `FIFA_MATCHES` | 两处 `wrangler.toml` 同一 id | `wrangler kv namespace create` | 两单元共享的状态存储 |
 
@@ -117,9 +117,9 @@ Worker 内部按赛事/比赛窗口**自限流**(`worker/src/index.ts`):
 # 1. 创建 KV(首次,需把 id 填进根目录与 worker/ 两处 wrangler.toml)
 npx wrangler kv namespace create FIFA_MATCHES
 
-# 2. 部署(Pages 也可由 git push master 自动触发)
+# 2. 部署（均为手动；Pages 未连 git，不会自动部署）
 npm run deploy        # Pages:前端 + Functions
-npm run worker:deploy # Worker:实时比分 Cron(独立,不随 git 自动部署)
+npm run worker:deploy # Worker:实时比分 Cron + 定时预测回调
 npm run deploy:all    # 两者一起
 ```
 
