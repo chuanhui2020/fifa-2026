@@ -6,6 +6,7 @@ import { isConfirmedFixture } from "@/data/teams";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { TavilyPoolModal } from "@/components/TavilyPoolModal";
+import { ScrollDateIndicator } from "@/components/ScrollDateIndicator";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
 import { usePredictions } from "@/hooks/usePredictions";
@@ -174,7 +175,7 @@ export default function SchedulePage() {
         ) : (
           <div className="space-y-8">
             {groupedMatches.map(([date, dateMatches]) => (
-              <section key={date}>
+              <section key={date} id={`date-${date}`} className="scroll-mt-24">
                 <h2 className="text-sm font-medium text-muted mb-3 py-2">
                   {formatDate(date)}
                 </h2>
@@ -193,6 +194,8 @@ export default function SchedulePage() {
           </div>
         )}
       </main>
+
+      <ScrollDateIndicator dates={groupedMatches.map(([date]) => date)} />
 
       <footer className="border-t border-border py-4 text-center safe-area-bottom">
         <p className="text-xs text-muted">
