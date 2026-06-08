@@ -8,7 +8,7 @@ id = "d6f5bfa045204fe0ae11f86d08959e23"
 
 # 回调 Pages 触发定时预测的目标域名（非敏感）。CRON_SECRET 为 secret，经 `wrangler secret put` 配置，不入库。
 [vars]
-PAGES_BASE_URL = "https://fifa-2026.pages.dev"
+PAGES_BASE_URL = "https://fifa-2026-6ep.pages.dev"
 
 # 每 2 分钟触发。worker 内部按赛事/比赛窗口自限流：
 #   - 非赛事期(6/11 前、7/20 后)：最多每 6 小时抓一次
