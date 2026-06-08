@@ -30,6 +30,8 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - [x] Cloudflare Pages 部署配置（wrangler.toml + deploy 脚本 + README 部署指南）
 - [x] 实时比分更新（独立 Worker + Cron + KV，赛事窗口自限流）
 - [x] Agent 系统（概率计算、预测）— 采集 + 归因 + 赔率 devig 已接入
+- [x] 定时预测（分档调度：>24h/6h、24-1h/1h、1h-5min/10min 不走缓存、<5min 停）
+- [x] 比赛结束复盘（最后一次预测 vs 实际比分 + 概率演变 + 重大归因变更高亮）
 
 ### 待完成
 
@@ -66,6 +68,38 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - eloratings.net 不可用 → elo agent 回退到 LLM + Tavily 搜索评分
 - 两个确定性源都挂 → 系统仍可运行，只是概率锚点退化为 LLM 输出（有幻觉风险）
 
+### 定时预测与复盘
+
+Pages Functions 不支持 cron，**时钟在 Worker，预测全套逻辑在 Pages**。Worker 每次 `scheduled`
+末尾 `waitUntil` fire-and-forget 回调 `POST /api/cron-predict`（带 `X-Cron-Secret`，放在最前不受
+ESPN 抓取自限流的提前 return 影响）。`cron-predict` 幂等：靠 `predictions:published[id].generatedAt`
++ 档位间隔判断每场是否到点，重复触发不会重复预测。
+
+**分档调度**（按距开赛时间，时间取静态赛程 ET `-04:00`）：
+
+| 距开赛 | 间隔 | 缓存 |
+|---|---|---|
+| >24h | 6h | 走缓存 |
+| 24h–1h | 1h | 走缓存 |
+| 1h–5min | 10min | **强制不走缓存**（`forceRefresh`，含各采集 agent 层） |
+| <5min / 已开赛 | 不预测 | 保留最后一次（供复盘） |
+
+单次触发最多预测 `MAX_PER_RUN`=5 场，按离开赛最近优先，避免赛前同档比赛一次打爆 CPU/额度。
+Worker cron 仍是 `*/2`（2min），足够覆盖 10min 最细档。
+
+**预测历史**：每场每次预测追加一条精简快照到 `pred-history:{matchId}`（封顶最近 30 次），
+含概率/置信度/topFactors + 相对上一版的**重大变更**（结论翻转、概率≥10pp 突变、高权重因子方向反转/增删）。
+检测在 `src/agents/prediction-history.ts`，发布+记历史与手动 `/api/predict` 共用 `src/agents/publish.ts`。
+
+**自动复盘判定**：`cron-predict` 顺带扫 KV `matches:all` 里 `finished` 且有比分、未 resolve 的比赛，
+按比分算 `home/draw/away` 调 `resolveMatch()`，无需人工录入。前端比赛结束后 `MatchCard` 渲染
+`ReviewCard`（最后预测 vs 实际比分命中标记 + 概率演变迷你折线 + 重大归因变更高亮，展开按需拉
+`/api/prediction-history`）。
+
+> **新增环境变量**：Pages 加 `CRON_SECRET`；Worker 加同名 `CRON_SECRET` + `PAGES_BASE_URL`
+> （Pages 域名，如 `https://fifa-2026.pages.dev`）。两者缺一则 Worker 跳过回调、定时预测不生效
+> （手动 `/api/predict` 不受影响）。Worker 改了代码需 `npm run worker:deploy`（不随 git 自动部署）。
+
 ## 架构
 
 静态导出（`next.config.ts` 的 `output: "export"`）+ Cloudflare Pages Functions。
@@ -82,14 +116,16 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 functions/api/                # Cloudflare Pages Functions（后端接口）
 ├── predict.ts                # 预测（admin 鉴权 + IP 限流 + KV 缓存）
 ├── predict-stream.ts         # 预测流式输出
+├── cron-predict.ts           # 定时预测（CRON_SECRET 鉴权，Worker 回调，分档调度 + 自动 resolve）
+├── prediction-history.ts     # 单场预测历史只读（复盘演变 + 重大变更）
 ├── admin-login.ts            # 管理员登录（签发 HMAC token）
 ├── matches.ts                # 读取 KV 赛程
-├── resolve-match.ts          # 录入真实比分（校准用）
+├── resolve-match.ts          # 录入真实比分（校准用，手动兜底）
 ├── calibration-metrics.ts    # 校准指标
 └── warmup.ts                 # 预热
 
 worker/                       # 独立 Worker：定时抓 ESPN 实时比分 → KV
-└── src/index.ts              # Cron 入口（按赛事/比赛窗口自限流）
+└── src/index.ts              # Cron 入口（按赛事/比赛窗口自限流 + 末尾回调 cron-predict）
                               # + espn.ts / football-data.ts / transform.ts / group-map.ts
 
 src/
@@ -99,6 +135,8 @@ src/
 │   └── page.tsx              # 主赛程页面（筛选 + 列表）
 ├── agents/
 │   ├── orchestrator.ts       # 编排（并行采集 + 串行归因 + 超时/缓存/校准记录）
+│   ├── publish.ts            # 预测→发布→记历史 组合（predict / cron-predict 共用）
+│   ├── prediction-history.ts # 预测历史读写 + 重大变更检测
 │   ├── base-probability.ts   # 基准概率
 │   ├── cache.ts              # KV 缓存读写
 │   ├── calibration.ts        # 校准数据记录
@@ -109,7 +147,7 @@ src/
 │   ├── odds/                 # the-odds-api 客户端 + devig（去抽水）
 │   ├── tools/                # web-search（Tavily）
 │   └── prompts/              # Prompt 模板（.md）+ loader
-├── components/               # FilterChips / MatchCard / PredictionCard / AdminLoginModal
+├── components/               # FilterChips / MatchCard / PredictionCard / ReviewCard / ScrollDateIndicator / AdminLoginModal
 ├── contexts/AdminContext.tsx # 管理员登录态
 ├── hooks/useMatches.ts       # 赛程数据（静态兜底 + 轮询 /api/matches）
 ├── lib/timezone.ts           # 时区工具

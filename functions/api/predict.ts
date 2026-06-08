@@ -1,4 +1,4 @@
-import { predict } from "../../src/agents/orchestrator";
+import { predictPublishRecord } from "../../src/agents/publish";
 import { setKVStore } from "../../src/agents/cache";
 import { setCalibrationStore } from "../../src/agents/calibration";
 import { isConfirmedFixture } from "../../src/data/teams";
@@ -88,18 +88,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const result = await predict(matchId, homeTeam, awayTeam, { forceRefresh: !!forceRefresh });
-
-    // 持久化一份「已发布」副本（无 TTL），供公开只读接口 /api/predictions 给普通访客查看。
-    // 与 30 分钟的预测缓存分开：缓存用于去重/admin 刷新，此副本长期保留。失败不影响返回。
-    try {
-      const raw = await context.env.FIFA_MATCHES.get("predictions:published");
-      const published = raw ? JSON.parse(raw) : {};
-      published[matchId] = result;
-      await context.env.FIFA_MATCHES.put("predictions:published", JSON.stringify(published));
-    } catch (e) {
-      console.error("Failed to persist published prediction:", e);
-    }
+    // 预测 → 发布(供公开只读查看) → 记历史(含重大变更检测)，三步与 cron 路径共用同一实现。
+    const { result } = await predictPublishRecord(matchId, homeTeam, awayTeam, { forceRefresh: !!forceRefresh });
 
     return new Response(JSON.stringify(result), {
       headers: {

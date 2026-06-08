@@ -42,9 +42,31 @@ function isInTournamentWindow(now: Date): boolean {
   return now >= start && now <= end;
 }
 
+/**
+ * Pages Functions 不支持 cron，定时预测的全套逻辑（LLM/号池/devig/归因/发布/复盘）都在
+ * Pages 端。Worker 把自己的时钟借给 Pages：每次 scheduled 末尾 fire-and-forget 回调
+ * /api/cron-predict（带共享密钥）。是否到点、预测哪几场、自动 resolve 都由 Pages 端自行判定。
+ * 用 waitUntil 确保请求发出后不被提前回收；失败静默（下次 cron 再试）。
+ */
+async function pingCronPredict(env: Env): Promise<void> {
+  if (!env.PAGES_BASE_URL || !env.CRON_SECRET) return;
+  try {
+    await fetch(`${env.PAGES_BASE_URL.replace(/\/$/, "")}/api/cron-predict`, {
+      method: "POST",
+      headers: { "X-Cron-Secret": env.CRON_SECRET },
+    });
+  } catch {
+    // 定时预测回调失败不影响实时比分抓取；下个 cron 周期重试。
+  }
+}
+
 const worker = {
-  async scheduled(event: ScheduledEvent, env: Env) {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const now = new Date();
+
+    // 定时预测回调:放在最前,不受下方 ESPN 抓取自限流 return 影响。
+    // cron-predict 幂等且无到点比赛时极廉价(仅读 KV + 比时间戳),每 2min 调用安全。
+    ctx.waitUntil(pingCronPredict(env));
 
     if (!isInTournamentWindow(now)) {
       const lastUpdated = await env.FIFA_MATCHES.get("meta:lastUpdated");

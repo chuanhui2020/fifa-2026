@@ -5,6 +5,7 @@ import type { PredictionResult } from "@/agents/types";
 import { getTeamDisplay } from "@/data/teams";
 import { getVenueDisplay, getCityDisplay } from "@/data/venues";
 import { PredictionCard } from "./PredictionCard";
+import { ReviewCard } from "./ReviewCard";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 function StatusBadge({ status }: { status: Match["status"] }) {
@@ -119,6 +120,12 @@ export function MatchCard({ match, displayTime, prediction }: { match: Match; di
             awayTeam={match.awayTeam}
             published={prediction}
           />
+        </ErrorBoundary>
+      )}
+
+      {match.status === "finished" && prediction && (
+        <ErrorBoundary>
+          <ReviewCard match={match} prediction={prediction} />
         </ErrorBoundary>
       )}
     </article>

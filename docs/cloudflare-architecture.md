@@ -90,20 +90,24 @@ Worker 内部按赛事/比赛窗口**自限流**(`worker/src/index.ts`):
 
 | 键 | 写入方 | 读取方 | 说明 |
 |---|---|---|---|
-| `matches:all` | Worker | `/api/matches` | 实时赛程全量数据 |
+| `matches:all` | Worker | `/api/matches` / `/api/cron-predict` | 实时赛程全量数据(cron-predict 读其比分做自动复盘判定) |
 | `meta:lastUpdated` | Worker | Worker / `/api/matches` / `/health` | 上次抓取时间戳 |
 | `meta:activeWindow` | Worker | Worker | 是否处于比赛窗口 |
-| `prediction:{matchId}` | `/api/predict` | `/api/predict` | 预测结果缓存 |
+| `prediction:{matchId}` | `/api/predict` | `/api/predict` | 预测结果缓存(TTL 30min) |
+| `predictions:published` | `/api/predict` / `/api/cron-predict` | `/api/predictions` | 已发布预测(matchId→最新结果,无 TTL,公开只读) |
+| `pred-history:{matchId}` | `/api/predict` / `/api/cron-predict` | `/api/prediction-history` | 单场预测历史快照(封顶 30 次,含重大变更,复盘用) |
 | `odds:{key}` | odds 采集 | odds 采集 | 赔率快照缓存(TTL 3h,省 API 配额) |
-| `cal:{matchId}` | `/api/resolve-match` / 预测 | 校准统计 | 单场校准记录 |
+| `cal:{matchId}` | `/api/resolve-match` / `/api/cron-predict` / 预测 | 校准统计 | 单场校准记录(cron-predict 按比分自动 resolve) |
 | `cal:manifest` | 校准 | 校准 | 校准记录 id 清单 |
-| `ratelimit:{ip}:{window}` | `/api/predict` | `/api/predict` | 限流计数(10 次/分/IP,TTL 60s) |
+| `ratelimit:{ip}:{window}` | `/api/predict` | `/api/predict` | 限流计数(TTL 60s) |
 
 ## 运行时与外部依赖
 
 - **运行时**:Pages Functions 与 Worker 均跑在 Cloudflare Workers 的 V8 isolate(边缘),`nodejs_compat`。前端为纯静态资源,**无服务端渲染**。
-- **Worker 外呼**:ESPN(比分)、football-data(兜底,需 `FOOTBALL_DATA_API_KEY`)。
+- **Worker 外呼**:ESPN(比分)、football-data(兜底,需 `FOOTBALL_DATA_API_KEY`)、**回调 Pages `/api/cron-predict`**(定时预测,需 `PAGES_BASE_URL` + `CRON_SECRET`)。
 - **Pages Functions 外呼**:DeepSeek(LLM)、Tavily(搜索)、the-odds-api(赔率)、eloratings.net(Elo)。
+
+> **定时预测**:Pages Functions 无 cron,时钟借自 Worker——Worker 每 2min 在 `scheduled` 末尾 `waitUntil` 回调 `/api/cron-predict`(`X-Cron-Secret` 鉴权)。该端点按距开赛时间分档调度(>24h/6h、24-1h/1h、1h-5min/10min 不走缓存、<5min 停)预测最多 5 场,并自动 resolve 已结束比赛。详见 [CLAUDE.md 的「定时预测与复盘」](../CLAUDE.md)。
 
 > 各外部服务的用途、环境变量与降级策略见 [CLAUDE.md 的「外部服务依赖」](../CLAUDE.md)。
 
