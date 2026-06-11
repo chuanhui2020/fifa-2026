@@ -12,9 +12,23 @@ import type { CollectorRunOptions } from "./types";
 const COLLECTOR_TIMEOUT_MS = 45_000;
 const MAX_RETRIES = 1;
 
-// Hard cap on web_search calls per agent run. The query cache makes repeat
-// searches cheap, but a cap guarantees a single Tavily hit per agent.
-const MAX_SEARCHES_PER_RUN = 1;
+/**
+ * 每个采集器的确定性搜索查询（覆盖双方一次搜完）。
+ * 过去由模型自己发 web_search 工具调用 → 需要两次 LLM 往返（先出工具调用、再消费结果出 JSON）。
+ * 现在我们直接用固定 query 搜一次、把结果内联进 prompt，单次无工具补全即可，省掉一次往返 + 工具 schema 开销。
+ * 查询模板沿用各 system prompt 此前建议的写法。
+ */
+const SEARCH_QUERY: Record<string, (home: string, away: string) => string> = {
+  form: (h, a) => `${h} ${a} recent results form last 5 matches 2026`,
+  squad: (h, a) => `${h} ${a} injuries suspensions squad news World Cup 2026`,
+  elo: (h, a) => `${h} ${a} FIFA ranking Elo rating 2026`,
+  market: (h, a) => `${h} vs ${a} betting odds World Cup 2026`,
+};
+
+function buildSearchQuery(agentId: string, home: string, away: string): string {
+  const fn = SEARCH_QUERY[agentId];
+  return fn ? fn(home, away) : `${home} vs ${away} World Cup 2026`;
+}
 
 export async function runCollectorAgent(
   agentId: string,
@@ -98,34 +112,28 @@ async function executeAgent(
 
   const userPrompt = loadPrompt(userPromptFile, promptVars);
 
+  // 1) 先用确定性 query 调一次搜索。execute() 内部仍走查询级缓存 + 号池 + 失败容错，
+  //    返回的文本（命中时含来源 URL，失败时含「降置信度」提示）直接内联给模型。
   const webSearch = createWebSearchTool({ bypassCache: opts?.forceRefresh });
+  const query = buildSearchQuery(agentId, homeTeam, awayTeam);
+  const searchResult = await webSearch.execute(`${agentId}-search`, { query });
+  const searchText =
+    searchResult.content.find((c): c is { type: "text"; text: string } => c.type === "text")?.text ?? "";
 
-  // Cap web_search to MAX_SEARCHES_PER_RUN per agent. Once exhausted, block further
-  // calls and tell the model to answer from what it already gathered.
-  let searchCount = 0;
+  // 2) 把搜索结果接到用户消息末尾，单次无工具补全出 JSON（只一次 LLM 往返）。
+  const augmentedPrompt =
+    `${userPrompt}\n\n---\nWeb search results for "${query}":\n${searchText || "(no results)"}`;
 
   const agent = new Agent({
     initialState: {
       systemPrompt,
       model,
       messages: [],
-      tools: [webSearch],
     },
     getApiKey: () => getApiKey(),
-    beforeToolCall: async ({ toolCall }) => {
-      if (toolCall.name !== "web_search") return undefined;
-      if (searchCount >= MAX_SEARCHES_PER_RUN) {
-        return {
-          block: true,
-          reason: `Search limit reached (${MAX_SEARCHES_PER_RUN} per analysis). Produce your JSON answer now from the data already gathered; do not request another search.`,
-        };
-      }
-      searchCount++;
-      return undefined;
-    },
   });
 
-  await agent.prompt(userPrompt);
+  await agent.prompt(augmentedPrompt);
   await agent.waitForIdle();
 
   const lastMessage = agent.state.messages[agent.state.messages.length - 1];

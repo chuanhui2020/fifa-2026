@@ -78,11 +78,20 @@ async function executeAttribution(
     ? `\nBase Probability (from ${baseProbability.source} data, knockout stage — no draw):\n- Home advances: ${(baseProbability.homeWin * 100).toFixed(1)}%\n- Away advances: ${(baseProbability.awayWin * 100).toFixed(1)}%\n\nThis is a knockout match — extra time and penalties decide the winner if needed. Set draw to exactly 0. You may adjust each outcome by at most ±15 percentage points. Deviations beyond this band will be clamped.\n`
     : `\nBase Probability (from ${baseProbability.source} data):\n- Home win: ${(baseProbability.homeWin * 100).toFixed(1)}%\n- Draw: ${(baseProbability.draw * 100).toFixed(1)}%\n- Away win: ${(baseProbability.awayWin * 100).toFixed(1)}%\n\nUse this as your starting point. You may adjust each outcome by at most ±15 percentage points (e.g. a 40% base allows 25%–55%) based on factors not captured in the base probability. Deviations beyond this band will be clamped, so keep within it and explain any significant adjustment.\n`;
 
+  // 只把归因真正需要的字段喂给（最贵的）Pro 模型：每个采集器的来源、置信度、因子。
+  // 剔除 matchId/timestamp（已在 prompt 头部）、sources（URL 在 orchestrator 单独汇总，归因推理用不到）、
+  // impliedProbability（已通过上面的 baseInfo 提供）。再用紧凑序列化去掉缩进空白，显著省输入 token。
+  const slimData = collectorResults.map((r) => ({
+    agent: r.agentId,
+    confidence: r.confidence,
+    factors: r.factors,
+  }));
+
   const userPrompt = loadPrompt("attribution.user.md", {
     homeTeam,
     awayTeam,
     matchId,
-    collectorData: JSON.stringify(collectorResults, null, 2),
+    collectorData: JSON.stringify(slimData),
     contextInfo: contextInfo + baseInfo,
   });
 
