@@ -67,9 +67,10 @@ function readH2H(
 
 export async function getMatchOdds(
   homeTeam: string,
-  awayTeam: string
+  awayTeam: string,
+  opts?: { maxAgeMs?: number }
 ): Promise<MatchOdds | null> {
-  const snapshot = await fetchWorldCupOddsSnapshot();
+  const snapshot = await fetchWorldCupOddsSnapshot(opts);
   if (!snapshot) return null;
 
   const event = findEvent(snapshot, homeTeam, awayTeam);

@@ -110,7 +110,8 @@ export async function getMetrics(): Promise<CalibrationMetrics> {
   let logLossSum = 0;
   let correctCount = 0;
 
-  const buckets = new Map<string, { predictedSum: number; actualSum: number; count: number }>();
+  // 可靠性分桶：按桶索引(0..9)聚合，每桶记 (预测概率之和, 实际发生次数, 样本数)。
+  const buckets = new Map<number, { predictedSum: number; actualSum: number; count: number }>();
 
   for (const entry of resolved) {
     const { prediction, actual } = entry;
@@ -135,21 +136,31 @@ export async function getMetrics(): Promise<CalibrationMetrics> {
       maxProb === prediction.draw ? "draw" : "away";
     if (predicted === actual) correctCount++;
 
-    const bucketIdx = Math.min(Math.floor(predictedProb * 10), 9);
-    const bucketKey = `${bucketIdx * 10}-${(bucketIdx + 1) * 10}%`;
-    const bucket = buckets.get(bucketKey) || { predictedSum: 0, actualSum: 0, count: 0 };
-    bucket.predictedSum += predictedProb;
-    bucket.actualSum += 1;
-    bucket.count += 1;
-    buckets.set(bucketKey, bucket);
+    // 正确的可靠性图：每场贡献三个 (预测概率 p, 是否发生 0/1) 样本，按 p 落桶。
+    // 在每个概率区间内对比「平均预测概率」与「实际发生频率」，这才是校准曲线。
+    const points: [number, number][] = [
+      [prediction.homeWin, outcomeVec.home],
+      [prediction.draw, outcomeVec.draw],
+      [prediction.awayWin, outcomeVec.away],
+    ];
+    for (const [p, occurred] of points) {
+      const bucketIdx = Math.min(Math.floor(p * 10), 9);
+      const bucket = buckets.get(bucketIdx) || { predictedSum: 0, actualSum: 0, count: 0 };
+      bucket.predictedSum += p;
+      bucket.actualSum += occurred;
+      bucket.count += 1;
+      buckets.set(bucketIdx, bucket);
+    }
   }
 
-  const calibrationByBucket = Array.from(buckets.entries()).map(([bucket, data]) => ({
-    bucket,
-    predicted: data.predictedSum / data.count,
-    actual: data.actualSum / data.count,
-    count: data.count,
-  }));
+  const calibrationByBucket = Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([idx, data]) => ({
+      bucket: `${idx * 10}-${(idx + 1) * 10}%`,
+      predicted: data.predictedSum / data.count,
+      actual: data.actualSum / data.count,
+      count: data.count,
+    }));
 
   return {
     totalPredictions: entries.length,

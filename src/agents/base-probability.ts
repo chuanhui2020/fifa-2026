@@ -6,13 +6,18 @@ export interface BaseProbability {
   draw: number;
   awayWin: number;
   source: "market" | "elo" | "uniform";
+  /** True when the anchor is a hard data source (devigged odds / Elo table)
+   *  rather than an LLM-derived fallback or the uniform prior. Drives how
+   *  tightly the attribution model is clamped to it. */
+  deterministic: boolean;
 }
 
 export function computeBaseProbability(collectorResults: CollectorOutput[], stage?: string): BaseProbability {
   const marketResult = collectorResults.find((r) => r.agentId === "market");
   if (marketResult && marketResult.confidence >= 0.5) {
     // Prefer the deterministic structured probability (devigged odds) when present;
-    // it avoids brittle string-matching of factor names.
+    // it avoids brittle string-matching of factor names. impliedProbability is
+    // only attached on the deterministic devig path, so it implies deterministic.
     const structured = marketResult.impliedProbability;
     if (structured) {
       const sum = structured.homeWin + structured.draw + structured.awayWin;
@@ -22,21 +27,23 @@ export function computeBaseProbability(collectorResults: CollectorOutput[], stag
           draw: structured.draw / sum,
           awayWin: structured.awayWin / sum,
           source: "market",
+          deterministic: true,
         }, stage);
       }
     }
 
+    // LLM market fallback: probabilities parsed from factor names — not deterministic.
     const impliedProb = extractImpliedProbability(marketResult.factors);
-    if (impliedProb) return applyKnockout({ ...impliedProb, source: "market" }, stage);
+    if (impliedProb) return applyKnockout({ ...impliedProb, source: "market", deterministic: false }, stage);
   }
 
   const eloResult = collectorResults.find((r) => r.agentId === "elo");
   if (eloResult && eloResult.confidence >= 0.4) {
     const eloBased = estimateFromElo(eloResult.factors);
-    if (eloBased) return applyKnockout({ ...eloBased, source: "elo" }, stage);
+    if (eloBased) return applyKnockout({ ...eloBased, source: "elo", deterministic: !!eloResult.deterministic }, stage);
   }
 
-  return applyKnockout({ homeWin: 0.35, draw: 0.30, awayWin: 0.35, source: "uniform" }, stage);
+  return applyKnockout({ homeWin: 0.35, draw: 0.30, awayWin: 0.35, source: "uniform", deterministic: false }, stage);
 }
 
 /**
@@ -49,10 +56,10 @@ function applyKnockout(base: BaseProbability, stage?: string): BaseProbability {
   const total = base.homeWin + base.awayWin;
   if (total <= 0) return { ...base, homeWin: 0.5, draw: 0, awayWin: 0.5 };
   return {
+    ...base,
     homeWin: (base.homeWin + base.draw * (base.homeWin / total)),
     draw: 0,
     awayWin: (base.awayWin + base.draw * (base.awayWin / total)),
-    source: base.source,
   };
 }
 

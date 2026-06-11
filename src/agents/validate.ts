@@ -10,20 +10,29 @@ export class ValidationError extends Error {
 
 /**
  * Maximum absolute probability-point deviation the attribution model may apply
- * to any single outcome relative to the deterministic base probability. The
- * prompt instructs the model to stay within this band; this enforces it so a
- * hallucinated swing can't override a reliable market/Elo anchor.
+ * to any single outcome relative to a DETERMINISTIC base probability (devigged
+ * odds / Elo table). The prompt asks the model to stay within this band; this
+ * enforces it so a hallucinated swing can't override a reliable anchor.
  */
 export const MAX_ANCHOR_DEVIATION = 0.15;
 
 /**
- * Clamp each outcome to within ±MAX_ANCHOR_DEVIATION of the base while
- * maintaining sum=1. Values that hit a bound are fixed there; remaining
- * probability is distributed among unfixed outcomes proportionally.
+ * Wider band used when the base is NOT deterministic (LLM market/Elo fallback,
+ * or the uniform prior). Clamping the model tightly to a soft, LLM-derived
+ * anchor would be false precision ("LLM anchored to LLM"), so we give it room
+ * while still preventing absurd one-shot swings off a meaningless prior.
+ */
+export const MAX_ANCHOR_DEVIATION_SOFT = 0.35;
+
+/**
+ * Clamp each outcome to within ±`band` of the base while maintaining sum=1.
+ * Values that hit a bound are fixed there; remaining probability is distributed
+ * among unfixed outcomes proportionally.
  */
 function clampToAnchor(
   pred: { homeWin: number; draw: number; awayWin: number },
-  base: BaseProbability
+  base: BaseProbability,
+  band: number
 ): { homeWin: number; draw: number; awayWin: number } {
   const baseArr = [base.homeWin, base.draw, base.awayWin];
   const predArr = [pred.homeWin, pred.draw, pred.awayWin];
@@ -47,8 +56,8 @@ function clampToAnchor(
       const share = freeOrigSum > 0
         ? predArr[i] / freeOrigSum * remaining
         : remaining / (3 - fixed.filter(Boolean).length);
-      const lo = baseArr[i] - MAX_ANCHOR_DEVIATION;
-      const hi = baseArr[i] + MAX_ANCHOR_DEVIATION;
+      const lo = baseArr[i] - band;
+      const hi = baseArr[i] + band;
 
       if (share <= lo) { result[i] = lo; fixed[i] = true; newlyFixed = true; break; }
       else if (share >= hi) { result[i] = hi; fixed[i] = true; newlyFixed = true; break; }
@@ -176,11 +185,14 @@ export function validatePredictionResult(
     a /= sum;
   }
 
-  // Enforce the ±15% anchor: the model is told to stay within this band of the
-  // deterministic base, but the prompt alone is only a soft constraint. Clamp
-  // here so a hallucinated swing can't override a reliable market/Elo anchor.
+  // Enforce the anchor band: the prompt asks the model to stay near the base,
+  // but that's only a soft constraint. Clamp here so a hallucinated swing can't
+  // override a reliable market/Elo anchor. A deterministic anchor is trusted
+  // tightly (±15pp); a soft/LLM-derived or uniform anchor gets a wider band so
+  // we don't impose false precision around a weak prior.
   if (base) {
-    const anchored = clampToAnchor({ homeWin: h, draw: d, awayWin: a }, base);
+    const band = base.deterministic ? MAX_ANCHOR_DEVIATION : MAX_ANCHOR_DEVIATION_SOFT;
+    const anchored = clampToAnchor({ homeWin: h, draw: d, awayWin: a }, base, band);
     h = anchored.homeWin;
     d = anchored.draw;
     a = anchored.awayWin;
@@ -198,10 +210,16 @@ export function validatePredictionResult(
     ? obj.attribution.filter(isValidAttribution)
     : [];
 
-  const confidence =
+  let confidence =
     typeof obj.confidence === "number" && obj.confidence >= 0 && obj.confidence <= 1
       ? obj.confidence
       : 0.5;
+
+  // Without a deterministic anchor we genuinely know less — don't let the model
+  // report high confidence off a soft/LLM/uniform prior.
+  if (base && !base.deterministic) {
+    confidence = Math.min(confidence, 0.55);
+  }
 
   const summary = typeof obj.summary === "string" ? obj.summary : "";
   if (!summary) {
@@ -217,5 +235,23 @@ export function validatePredictionResult(
     generatedAt: Date.now(),
     sources: [],
     missingAgents: [],
+    // Surface the anchor and the model's REAL net adjustment (final − base),
+    // derived from the actual clamp path — honest, unlike attribution[].contribution.
+    ...(base
+      ? {
+          baseProbability: {
+            homeWin: base.homeWin,
+            draw: base.draw,
+            awayWin: base.awayWin,
+            source: base.source,
+            deterministic: base.deterministic,
+          },
+          adjustment: {
+            homeWin: h - base.homeWin,
+            draw: d - base.draw,
+            awayWin: a - base.awayWin,
+          },
+        }
+      : {}),
   };
 }

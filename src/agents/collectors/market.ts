@@ -7,6 +7,14 @@ import { getCachedCollector, setCacheCollector } from "../cache";
 
 const DEFAULT_CONFIDENCE = 0.8;
 
+/**
+ * Near kickoff (forceRefresh), demand an odds snapshot no older than this so the
+ * closing line — which moves most in the final hours — isn't served up to 3h
+ * stale. One re-pull refreshes the tournament-wide snapshot for every fixture,
+ * so the extra the-odds-api calls stay well within the free 500/month quota.
+ */
+const NEAR_KICKOFF_ODDS_MAX_AGE_MS = 30 * 60 * 1000;
+
 function buildDeterministicOutput(matchId: string, odds: MatchOdds): CollectorOutput {
   const { probabilities, bookmakerCount, sources, consensusOdds } = odds;
   const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -49,7 +57,7 @@ function buildDeterministicOutput(matchId: string, odds: MatchOdds): CollectorOu
     DEFAULT_CONFIDENCE
   );
 
-  return { ...base, impliedProbability: probabilities };
+  return { ...base, impliedProbability: probabilities, deterministic: true };
 }
 
 export const marketAgent: CollectorAgent = {
@@ -63,9 +71,14 @@ export const marketAgent: CollectorAgent = {
 
     // Primary: deterministic devigged odds from the-odds-api snapshot. The snapshot
     // is shared across the whole tournament and bounded by the-odds-api's 500/month
-    // quota — force-refresh does NOT re-pull it (its own TTL governs freshness),
-    // only the per-match collector cache above.
-    const odds = await getMatchOdds(homeTeam, awayTeam);
+    // quota. Far from kickoff we accept any non-expired snapshot (≤3h); on
+    // force-refresh (the 30-min near-kickoff tier) we demand a fresh closing line,
+    // re-pulling the shared snapshot if it's older than NEAR_KICKOFF_ODDS_MAX_AGE_MS.
+    const odds = await getMatchOdds(
+      homeTeam,
+      awayTeam,
+      opts?.forceRefresh ? { maxAgeMs: NEAR_KICKOFF_ODDS_MAX_AGE_MS } : undefined
+    );
     if (odds) {
       const output = buildDeterministicOutput(matchId, odds);
       await setCacheCollector("market", matchId, output);

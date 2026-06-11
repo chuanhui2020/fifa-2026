@@ -20,6 +20,14 @@ export interface CollectorOutput {
    * factor names. Sums to ~1.
    */
   impliedProbability?: { homeWin: number; draw: number; awayWin: number };
+  /**
+   * True when this output comes from a deterministic source (devigged odds,
+   * eloratings.net table) rather than the LLM + web-search fallback. The
+   * attribution clamp trusts a deterministic anchor tightly (±15pp) but gives
+   * the model more room around a soft/LLM-derived anchor — otherwise the clamp
+   * would be "LLM anchored to LLM" with false precision.
+   */
+  deterministic?: boolean;
 }
 
 export interface Attribution {
@@ -43,6 +51,23 @@ export interface PredictionResult {
   sources: string[];
   missingAgents: string[];
   log?: PredictionLog;
+  /**
+   * The deterministic anchor the final probability was built on (devigged odds /
+   * Elo / uniform). Surfaced so the UI can show "base → adjusted" honestly.
+   */
+  baseProbability?: {
+    homeWin: number;
+    draw: number;
+    awayWin: number;
+    source: "market" | "elo" | "uniform";
+    deterministic: boolean;
+  };
+  /**
+   * The model's REAL net adjustment per outcome: final (after clamping) minus
+   * base. Derived from the actual math path, unlike `attribution[].contribution`
+   * which is the model's qualitative self-report and need not sum to this.
+   */
+  adjustment?: { homeWin: number; draw: number; awayWin: number };
 }
 
 /**

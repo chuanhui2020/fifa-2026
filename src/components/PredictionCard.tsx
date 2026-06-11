@@ -78,6 +78,62 @@ function AttributionItem({ factor, contribution, explanation, direction }: {
   );
 }
 
+const ANCHOR_SOURCE_CN: Record<string, string> = {
+  market: "赔率共识",
+  elo: "Elo 评分",
+  uniform: "均匀先验",
+};
+
+/**
+ * 诚实的归因核心：展示确定性锚点(基准概率)与 AI 相对它的**真实调整量**
+ * (final − base，由实际数学路径反推)。这区别于下方 LLM 自述的「归因解读」——
+ * 后者是定性说明，其数字不必等于这里的真实偏移。
+ */
+function AnchorBreakdown({ base, adjustment }: {
+  base: NonNullable<PredictionResult["baseProbability"]>;
+  adjustment?: PredictionResult["adjustment"];
+}) {
+  const rows = [
+    { cn: "主胜", b: base.homeWin, adj: adjustment?.homeWin ?? 0, color: "text-emerald-300" },
+    { cn: "平局", b: base.draw, adj: adjustment?.draw ?? 0, color: "text-amber-300" },
+    { cn: "客胜", b: base.awayWin, adj: adjustment?.awayWin ?? 0, color: "text-rose-300" },
+  ].filter((r) => !(r.cn === "平局" && r.b < 0.005 && Math.abs(r.adj) < 0.005));
+
+  const fmtPP = (adj: number) => `${adj > 0 ? "+" : adj < 0 ? "−" : "±"}${Math.abs(adj * 100).toFixed(0)}pp`;
+
+  return (
+    <div className="mt-3 p-2.5 rounded-lg bg-card-hover/40 border border-border/50">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-foreground/80">
+          基准锚点 · {ANCHOR_SOURCE_CN[base.source] || base.source}
+        </span>
+        {!base.deterministic && (
+          <span className="text-xs text-amber-400/80" title="无确定性数据源(赔率/Elo)，AI 调整空间更大、置信度受限">
+            ⚠ 无确定性锚点
+          </span>
+        )}
+      </div>
+      <div className="space-y-1">
+        {rows.map((r) => (
+          <div key={r.cn} className="flex items-center justify-between text-xs tabular-nums">
+            <span className="text-muted">{r.cn}</span>
+            <span className="flex items-center gap-2">
+              <span className={r.color}>{(r.b * 100).toFixed(0)}%</span>
+              <span className="text-muted/60">→</span>
+              <span className={`w-12 text-right ${Math.abs(r.adj) < 0.005 ? "text-muted/50" : r.adj > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {fmtPP(r.adj)}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted/70 mt-1.5 leading-relaxed">
+        基准来自{base.deterministic ? "确定性数据" : "回退估计"}；右列为 AI 综合其余因子后的真实调整量。
+      </p>
+    </div>
+  );
+}
+
 const LOADING_STEPS = [
   "正在搜索实时数据...",
   "正在分析球队实力...",
@@ -310,6 +366,8 @@ export function PredictionCard({
     summary,
     confidence = 0,
     missingAgents = [],
+    baseProbability,
+    adjustment,
   } = display!;
 
   const homeCn = getTeamDisplay(homeTeam).cn || homeTeam;
@@ -370,6 +428,10 @@ export function PredictionCard({
         </span>
       </div>
 
+      {baseProbability && (
+        <AnchorBreakdown base={baseProbability} adjustment={adjustment} />
+      )}
+
       {summary && (
         <p className="mt-3 text-xs text-muted leading-relaxed">{summary}</p>
       )}
@@ -385,9 +447,12 @@ export function PredictionCard({
             >
               <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
             </svg>
-            归因分析 ({attribution.length}项)
+            归因解读 · 定性 ({attribution.length}项)
           </summary>
           <div className="mt-2 pt-1">
+            <p className="text-[11px] text-muted/70 mb-1 leading-relaxed">
+              以下为 AI 对各因子影响的定性说明，百分比为其主观权重，非上方真实调整量的精确拆分。
+            </p>
             {attribution.map((attr: Attribution, i: number) => (
               <AttributionItem key={i} {...attr} />
             ))}

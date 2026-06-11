@@ -36,7 +36,7 @@ function buildDeterministicOutput(matchId: string, homeTeam: string, awayTeam: s
     DEFAULT_CONFIDENCE
   );
 
-  return base;
+  return { ...base, deterministic: true };
 }
 
 export const eloAgent: CollectorAgent = {
