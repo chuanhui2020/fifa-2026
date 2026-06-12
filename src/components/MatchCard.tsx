@@ -45,10 +45,12 @@ function TeamRow({
             src={`https://flagcdn.com/${code}.svg`}
             width="20"
             height="15"
-            alt={cn}
+            alt=""
+            aria-hidden="true"
             className="mr-1.5 shrink-0 rounded-[2px] ring-1 ring-white/20 object-cover"
             style={{ width: 20, height: 15, aspectRatio: "4/3" }}
             loading="lazy"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
         )}
         {cn}

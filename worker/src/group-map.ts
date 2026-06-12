@@ -62,6 +62,7 @@ export const TEAM_NAME_NORMALIZE: Record<string, string> = {
   "Korea Republic": "South Korea",
   "Czech Republic": "Czechia",
   "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
   "USA": "United States",
   "Turkey": "Türkiye",
   "Curaçao": "Curacao",
