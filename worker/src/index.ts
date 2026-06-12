@@ -11,18 +11,12 @@ function getRelevantDates(now: Date): string[] {
     day: "2-digit",
   });
   const today = formatter.format(now);
+  const tomorrow = formatter.format(new Date(now.getTime() + 24 * 60 * 60 * 1000));
 
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const tomorrowStr = formatter.format(tomorrow);
-
-  const hour = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
-  ).getHours();
-
-  if (hour >= 22) {
-    return [today, tomorrowStr];
-  }
-  return [today];
+  // 始终多看一天：让「明天」开球时间/对阵的修正在赛前一天就经正常刷新落地，
+  // 不必等到比赛当天（如种子里 id4 这类录入错，靠系统自己的管线拉平，不用手改 KV）。
+  // ESPN 免费，每轮多 1 次调用，配合既有自限流可接受。
+  return [today, tomorrow];
 }
 
 function isWithinMatchWindow(matches: Match[], now: Date): boolean {

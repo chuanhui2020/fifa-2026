@@ -93,24 +93,57 @@ export function transformESPNEvents(events: ESPNEvent[]): Match[] {
   }).filter((m): m is Match => m !== null);
 }
 
+/**
+ * 队名归一化键：先过别名表，再 NFD 拆分音符 + 小写 + 只留 a–z。
+ * NFD 会把 ç/ü 等拆成「基字母 + 组合音符」，组合音符不是 a–z，被末步一并清掉，
+ * 于是 Curaçao→curacao、Türkiye→turkiye，吸收 ESPN/种子的命名差异。
+ */
+function teamKey(name: string): string {
+  return normalizeTeamName(name)
+    .normalize("NFD")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+/** 主客有序的对阵键，用于「日期无关」匹配（容忍开球时间/日期被官方改动）。 */
+function pairKey(home: string, away: string): string {
+  return `${teamKey(home)}|${teamKey(away)}`;
+}
+
+/**
+ * 把 ESPN 抓到的 updates 合并进 existing（KV 现有全量）。匹配优先级：
+ *   1) espnId 精确 —— 一旦某行带过 espnId，后续最稳，日期/队名怎么变都跟得上。
+ *   2) 主客队对（日期无关）—— 小组赛即使官方调了开球时间/日期也能命中并改正。
+ *   3) stage+date+venue 兜底 —— 淘汰赛占位对阵（"A组第2 vs B组第2"）按固定的
+ *      日期+场馆槽位原地更新成真实队名，避免重复行。
+ *   4) 都没命中 —— 视为种子里缺的真实场次，直接新增，不再静默丢弃。
+ * 命中后保留站内稳定 id，其余字段（date/time/status/score/venue/espnId）以 ESPN 为准。
+ */
 export function mergeMatches(existing: Match[], updates: Match[]): Match[] {
   const merged = [...existing];
 
   for (const update of updates) {
-    const idx = merged.findIndex((m) => {
-      if (m.espnId && update.espnId) return m.espnId === update.espnId;
-      return m.date === update.date && m.homeTeam === update.homeTeam && m.awayTeam === update.awayTeam;
-    });
+    let idx = -1;
+
+    if (update.espnId) {
+      idx = merged.findIndex((m) => m.espnId && m.espnId === update.espnId);
+    }
+
+    if (idx < 0) {
+      const pk = pairKey(update.homeTeam, update.awayTeam);
+      idx = merged.findIndex((m) => pairKey(m.homeTeam, m.awayTeam) === pk);
+    }
+
+    if (idx < 0) {
+      idx = merged.findIndex(
+        (m) => m.stage === update.stage && m.date === update.date && m.venue === update.venue
+      );
+    }
 
     if (idx >= 0) {
       merged[idx] = { ...merged[idx], ...update, id: merged[idx].id };
     } else {
-      const byDateVenue = merged.findIndex(
-        (m) => m.date === update.date && m.venue === update.venue && m.status === "upcoming"
-      );
-      if (byDateVenue >= 0) {
-        merged[byDateVenue] = { ...merged[byDateVenue], ...update, id: merged[byDateVenue].id };
-      }
+      merged.push(update);
     }
   }
 
