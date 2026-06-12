@@ -134,7 +134,7 @@ export function ScrollDateIndicator({ dates }: Props) {
 
   const active = parseDate(dates[activeIndex]);
   const showBubble = visible || dragging;
-  // 移动端把手:活跃滚动 或 拖拽中 显示
+  // 移动端把手:常驻(闲时低透明度),活跃滚动 / 拖拽时高亮——避免"停滚即消失"
   const showHandle = scrolling || dragging;
   const valueText = `${active.month}月${active.day}日 ${active.weekday}`;
 
@@ -162,8 +162,10 @@ export function ScrollDateIndicator({ dates }: Props) {
             <span
               key={d}
               className={`rounded-full transition-all duration-200 ${
-                isActive ? "h-[3px] w-3.5 bg-highlight" : "h-[2px] w-1.5 bg-border"
-              } ${showBubble ? "opacity-100" : "opacity-0"}`}
+                isActive
+                  ? "h-[3px] w-3.5 bg-highlight opacity-100"
+                  : `h-[2px] w-1.5 bg-border ${showBubble ? "opacity-100" : "opacity-40"}`
+              }`}
             />
           );
         })}
@@ -187,7 +189,7 @@ export function ScrollDateIndicator({ dates }: Props) {
             dragging
               ? "scale-110 border-highlight/70 bg-card"
               : "border-border bg-card/85"
-          } ${showHandle ? "opacity-100" : "pointer-events-none translate-x-2 opacity-0"}`}
+          } ${showHandle ? "opacity-100" : "opacity-60"}`}
           role="slider"
           aria-label="按日期快速定位"
           aria-valuemin={0}
