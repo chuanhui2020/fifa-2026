@@ -217,5 +217,8 @@ export function validatePredictionResult(
     generatedAt: Date.now(),
     sources: [],
     missingAgents: [],
+    ...(base
+      ? { baseProbability: { homeWin: base.homeWin, draw: base.draw, awayWin: base.awayWin, source: base.source } }
+      : {}),
   };
 }

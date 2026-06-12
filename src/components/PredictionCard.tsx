@@ -310,6 +310,7 @@ export function PredictionCard({
     summary,
     confidence = 0,
     missingAgents = [],
+    baseProbability,
   } = display!;
 
   const homeCn = getTeamDisplay(homeTeam).cn || homeTeam;
@@ -369,6 +370,26 @@ export function PredictionCard({
           {awayCn} {(prediction.awayWin * 100).toFixed(0)}%
         </span>
       </div>
+
+      {/* 确定性基准行：市场赔率(或 Elo)作为锚点固定展示,最终概率在此基础上 ±15pp 微调。 */}
+      {baseProbability && baseProbability.source !== "uniform" && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/60 bg-card-hover/40 px-2.5 py-1.5">
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+              baseProbability.source === "market"
+                ? "bg-highlight/15 text-highlight"
+                : "bg-border/50 text-muted"
+            }`}
+          >
+            {baseProbability.source === "market" ? "市场基准" : "Elo 基准"}
+          </span>
+          <span className="text-[11px] tabular-nums text-foreground/70 truncate">
+            {homeCn} {(baseProbability.homeWin * 100).toFixed(0)}%
+            {baseProbability.draw >= 0.005 && ` · 平 ${(baseProbability.draw * 100).toFixed(0)}%`}
+            {` · ${awayCn} ${(baseProbability.awayWin * 100).toFixed(0)}%`}
+          </span>
+        </div>
+      )}
 
       {summary && (
         <p className="mt-3 text-xs text-muted leading-relaxed">{summary}</p>
