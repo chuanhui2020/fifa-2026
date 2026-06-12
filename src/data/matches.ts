@@ -23,7 +23,7 @@ export const matches: Match[] = [
   { id: 2, date: "2026-06-11", time: "22:00", homeTeam: "South Korea", awayTeam: "Czechia", group: "A", stage: "group", venue: "Estadio Akron", city: "Guadalajara", status: "upcoming" },
   // Group B
   { id: 3, date: "2026-06-12", time: "15:00", homeTeam: "Canada", awayTeam: "Bosnia and Herzegovina", group: "B", stage: "group", venue: "BMO Field", city: "Toronto", status: "upcoming" },
-  { id: 4, date: "2026-06-13", time: "01:00", homeTeam: "Qatar", awayTeam: "Switzerland", group: "B", stage: "group", venue: "Levi's Stadium", city: "Santa Clara", status: "upcoming" },
+  { id: 4, date: "2026-06-13", time: "15:00", homeTeam: "Qatar", awayTeam: "Switzerland", group: "B", stage: "group", venue: "Levi's Stadium", city: "Santa Clara", status: "upcoming" },
   // Group C
   { id: 5, date: "2026-06-13", time: "18:00", homeTeam: "Brazil", awayTeam: "Morocco", group: "C", stage: "group", venue: "MetLife Stadium", city: "East Rutherford", status: "upcoming" },
   { id: 6, date: "2026-06-13", time: "21:00", homeTeam: "Haiti", awayTeam: "Scotland", group: "C", stage: "group", venue: "Gillette Stadium", city: "Foxborough", status: "upcoming" },

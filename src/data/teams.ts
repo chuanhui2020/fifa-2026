@@ -49,8 +49,29 @@ export const teamNames: Record<string, { cn: string; code: string }> = {
   "Colombia": { cn: "哥伦比亚", code: "co" },
 };
 
+/**
+ * ESPN/数据源的队名拼写 → teamNames 规范键。KV 里可能存 ESPN 原文
+ * （如 "Bosnia-Herzegovina"、"USA"），与本表规范名不一致;归一化后才能查到中文+旗。
+ */
+const NAME_ALIASES: Record<string, string> = {
+  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+  "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+  "Korea Republic": "South Korea",
+  "Czech Republic": "Czechia",
+  "USA": "United States",
+  "Turkey": "Türkiye",
+  "Curaçao": "Curacao",
+  "Côte d'Ivoire": "Ivory Coast",
+  "Cabo Verde": "Cape Verde",
+  "DR Congo": "Congo DR",
+};
+
+function canonicalName(name: string): string {
+  return NAME_ALIASES[name] || name;
+}
+
 export function getTeamDisplay(name: string): { cn: string; code: string } {
-  return teamNames[name] || { cn: name, code: "" };
+  return teamNames[canonicalName(name)] || { cn: name, code: "" };
 }
 
 /**
@@ -58,7 +79,7 @@ export function getTeamDisplay(name: string): { cn: string; code: string } {
  * （"Group A 2nd"、"R32-1 Winner"、"3rd Place A/B/C/D/F" 等）不在其中。
  */
 export function isRealTeam(name: string): boolean {
-  return name in teamNames;
+  return canonicalName(name) in teamNames;
 }
 
 /** 对阵双方是否都已确定（非占位符）。用于放行/屏蔽预测。 */

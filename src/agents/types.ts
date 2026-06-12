@@ -50,8 +50,9 @@ export interface PredictionResult {
   generatedAt: number;
   sources: string[];
   missingAgents: string[];
-  log?: PredictionLog;
   /**
+   * 确定性基准概率（最终概率在此基础上做 ±15pp 调整）。来源 market 时即「市场赔率作为基准」，
+   * 持久化后供前端固定展示,不依赖归因模型是否把市场提为首项。
    * The deterministic anchor the final probability was built on (devigged odds /
    * Elo / uniform). Surfaced so the UI can show "base → adjusted" honestly.
    */
@@ -62,6 +63,7 @@ export interface PredictionResult {
     source: "market" | "elo" | "uniform";
     deterministic: boolean;
   };
+  log?: PredictionLog;
   /**
    * The model's REAL net adjustment per outcome: final (after clamping) minus
    * base. Derived from the actual math path, unlike `attribution[].contribution`
