@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { groups, stages } from "@/data/matches";
 import { isConfirmedFixture } from "@/data/teams";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { TavilyPoolModal } from "@/components/TavilyPoolModal";
 import { ScrollDateIndicator } from "@/components/ScrollDateIndicator";
+import { VisitorStats } from "@/components/VisitorStats";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
 import { useMatches } from "@/hooks/useMatches";
 import { usePredictions } from "@/hooks/usePredictions";
@@ -70,8 +71,54 @@ export default function SchedulePage() {
       }
       grouped[converted.date].push({ match, convertedTime: converted.time });
     }
+    // 同一天内按开球时间(北京时间 HH:MM)升序——同日期下字符串比较即时间顺序;
+    // 并列按 id 兜底保证稳定。配合下方 grid 的 row-flow,即「早→晚 = 左上→右→换行」。
+    for (const date in grouped) {
+      grouped[date].sort(
+        (a, b) =>
+          a.convertedTime.localeCompare(b.convertedTime) || a.match.id - b.match.id
+      );
+    }
+    // 日期段之间按 BJ 日期升序,整页自上而下严格时间递增。
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredMatches]);
+
+  // 首次进入 / 刷新:自动定位到「当前北京日期」的比赛段(无今天则取最近的未来段,赛事全过则最后一天)。
+  // 只定位一次——之后筛选、轮询刷新都不再打扰用户。
+  const didAutoScroll = useRef(false);
+  useEffect(() => {
+    if (didAutoScroll.current || groupedMatches.length === 0) return;
+
+    const scrollToToday = () => {
+      if (didAutoScroll.current) return;
+      const dates = groupedMatches.map(([d]) => d);
+      // 当前北京日期(YYYY-MM-DD),与分组 key 同口径
+      const todayBJ = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      const target = dates.find((d) => d >= todayBJ) ?? dates[dates.length - 1];
+      const el = document.getElementById(`date-${target}`);
+      if (!el) return;
+      didAutoScroll.current = true;
+      // 让「X月X日」尽量贴顶:按 sticky header 的实测高度(含标题 + 筛选条,随登录态/换行变化)
+      // 精确让位,使日期行刚好落在 header 下沿,而非被筛选条遮住或留大段空白。
+      const header = document.querySelector("header");
+      const headerH = header ? header.getBoundingClientRect().height : 0;
+      const y = el.getBoundingClientRect().top + window.scrollY - headerH;
+      window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+    };
+
+    // KV 已到位 → 直接按终态布局定位;否则用静态兜底先定位(600ms 兜底,避免 KV 慢/失败时停在顶部)。
+    if (lastUpdated) {
+      scrollToToday();
+    } else {
+      const timer = window.setTimeout(scrollToToday, 600);
+      return () => window.clearTimeout(timer);
+    }
+  }, [groupedMatches, lastUpdated]);
 
   const stageOptions = stages.map((s) => s.label);
   const stageKeyFromLabel = (label: string | null): string | null => {
@@ -197,7 +244,10 @@ export default function SchedulePage() {
 
       <ScrollDateIndicator dates={groupedMatches.map(([date]) => date)} />
 
-      <footer className="border-t border-border py-4 text-center safe-area-bottom">
+      <footer className="border-t border-border py-5 text-center safe-area-bottom">
+        <div className="mb-3 flex justify-center">
+          <VisitorStats />
+        </div>
         <p className="text-xs text-muted">
           FIFA 2026 世界杯 · 美国 / 墨西哥 / 加拿大
           {lastUpdated && (
