@@ -30,7 +30,7 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - [x] Cloudflare Pages 部署配置（wrangler.toml + deploy 脚本 + README 部署指南）
 - [x] 实时比分更新（独立 Worker + Cron + KV，赛事窗口自限流）
 - [x] Agent 系统（概率计算、预测）— 采集 + 归因 + 赔率 devig 已接入
-- [x] 定时预测（分档调度：>3天/24h、3天-1天/12h、24-1h/4h、1h-5min/30min 不走缓存、<5min 停）
+- [x] 定时预测（分档调度：>3天/24h、3天-1天/12h、24-1h/4h、1h-5min/10min 不走缓存、<5min 停）
 - [x] 比赛结束复盘（最后一次预测 vs 实际比分 + 概率演变 + 重大归因变更高亮）
 
 ### 待完成
@@ -82,11 +82,11 @@ ESPN 抓取自限流的提前 return 影响）。`cron-predict` 幂等：靠 `pr
 | >3天（72h） | 24h | 走缓存（远期 form/squad 几乎不变，低频省 DeepSeek） |
 | 3天–1天 | 12h | 走缓存 |
 | 24h–1h | 4h | 走缓存 |
-| 1h–5min | 30min | **强制不走缓存**（`forceRefresh`，含各采集 agent 层） |
+| 1h–5min | 10min | **强制不走缓存**（`forceRefresh`，含各采集 agent 层） |
 | <5min / 已开赛 | 不预测 | 保留最后一次（供复盘） |
 
 单次触发最多预测 `MAX_PER_RUN`=5 场，按离开赛最近优先，避免赛前同档比赛一次打爆 CPU/额度。
-Worker cron 仍是 `*/2`（2min），足够覆盖 30min 最细档。
+Worker cron 仍是 `*/2`（2min），足够覆盖 10min 最细档。
 
 **预测历史**：每场每次预测追加一条精简快照到 `pred-history:{matchId}`（封顶最近 30 次），
 含概率/置信度/topFactors + 相对上一版的**重大变更**（结论翻转、概率≥10pp 突变、高权重因子方向反转/增删）。

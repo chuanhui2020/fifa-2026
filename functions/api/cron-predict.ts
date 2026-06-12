@@ -27,13 +27,13 @@ const MIN = 60 * 1000;
  *  - >3天（>72h）：每 24h 一次（走缓存）——远期 form/squad 几乎不变，无需高频重跑省 DeepSeek
  *  - 1天–3天（24h–72h）：每 12h 一次（走缓存）
  *  - 1h–24h：每 4h 一次（走缓存）
- *  - 5min–1h：每 30min 一次（强制不走缓存）
+ *  - 5min–1h：每 10min 一次（强制不走缓存）
  *  - <5min 或已开赛：不预测（保留最后一次）
  * 返回 null 表示本档不预测。
  */
 function schedule(ttkMs: number): { intervalMs: number; forceRefresh: boolean } | null {
   if (ttkMs <= 5 * MIN) return null;            // 比赛 5min 之内 / 已开赛：保留最后一次
-  if (ttkMs <= HOUR) return { intervalMs: 30 * MIN, forceRefresh: true };
+  if (ttkMs <= HOUR) return { intervalMs: 10 * MIN, forceRefresh: true };
   if (ttkMs <= 24 * HOUR) return { intervalMs: 4 * HOUR, forceRefresh: false };
   if (ttkMs <= 72 * HOUR) return { intervalMs: 12 * HOUR, forceRefresh: false };
   return { intervalMs: 24 * HOUR, forceRefresh: false };
