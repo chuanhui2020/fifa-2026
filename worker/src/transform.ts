@@ -76,7 +76,9 @@ export function transformESPNEvents(events: ESPNEvent[]): Match[] {
       awayTeam,
       stage,
       venue: comp.venue?.fullName || "",
-      city: comp.venue?.address?.city || "",
+      // ESPN 偶尔把州/省塞进 city（如 "Inglewood, California"）；只取主体，
+      // 与静态赛程的 city 命名（"Inglewood"）一致，前端查表才能映射成中文。
+      city: (comp.venue?.address?.city || "").split(",")[0].trim(),
       status,
     };
 

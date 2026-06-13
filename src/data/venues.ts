@@ -60,7 +60,10 @@ export function getVenueDisplay(venue: string): string {
 }
 
 export function getCityDisplay(city: string): string {
-  const name = cityNames[city] || city;
-  const country = cityCountry[city];
+  // ESPN 实时数据的 city 可能带州/省，如 "Inglewood, California"；取逗号前的主体
+  // 再查表，回退也用规整后的主体，避免英文州名外溢成「非中文」显示。
+  const key = city.split(",")[0].trim();
+  const name = cityNames[key] || key;
+  const country = cityCountry[key];
   return country ? `${name}, ${country}` : name;
 }
