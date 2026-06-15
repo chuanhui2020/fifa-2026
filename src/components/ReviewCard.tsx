@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Match } from "@/data/matches";
-import type { PredictionResult, PredictionSnapshot, PredictionShift } from "@/agents/types";
+import type { PredictionResult, PredictionSnapshot } from "@/agents/types";
 import { getTeamDisplay } from "@/data/teams";
 
 type Outcome = "home" | "draw" | "away";
@@ -22,14 +22,40 @@ function predictedOutcome(p: { homeWin: number; draw: number; awayWin: number })
   return "away";
 }
 
-/** shift 类型 → 中文标签 + 配色。 */
-const SHIFT_META: Record<PredictionShift["kind"], { tag: string; cls: string }> = {
-  "outcome-flip": { tag: "结论翻转", cls: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-  "prob-swing": { tag: "概率突变", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-  "factor-flip": { tag: "因子反转", cls: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-  "factor-added": { tag: "新增因子", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
-  "factor-removed": { tag: "因子消失", cls: "bg-slate-500/15 text-slate-300 border-slate-500/30" },
-};
+/** 结论的简短中文标签（用于翻转链，避免拼接长队名）。 */
+const SHORT_OUTCOME: Record<Outcome, string> = { home: "主胜", draw: "平局", away: "客胜" };
+
+/** 概率突变上榜阈值（百分点）：单步波动 ≥ 此值才算「重点变化」。 */
+const SWING_HEADLINE_PP = 0.1;
+
+type KeyChange = { tag: string; cls: string; detail: string };
+
+/** 历史快照里去重的连续 top 结论序列；length-1 即结论翻转次数。 */
+function conclusionJourney(history: PredictionSnapshot[]): Outcome[] {
+  const journey: Outcome[] = [];
+  for (const s of history) {
+    const o = predictedOutcome(s.prediction);
+    if (journey.length === 0 || journey[journey.length - 1] !== o) journey.push(o);
+  }
+  return journey;
+}
+
+/** 相邻两次预测间最大的单步概率波动（任一结果）；不足两次返回 null。 */
+function biggestSwing(history: PredictionSnapshot[]): { cn: string; delta: number } | null {
+  const keys = [
+    { key: "homeWin", cn: "主胜" },
+    { key: "draw", cn: "平局" },
+    { key: "awayWin", cn: "客胜" },
+  ] as const;
+  let best: { cn: string; delta: number } | null = null;
+  for (let i = 1; i < history.length; i++) {
+    for (const { key, cn } of keys) {
+      const d = history[i].prediction[key] - history[i - 1].prediction[key];
+      if (!best || Math.abs(d) > Math.abs(best.delta)) best = { cn, delta: d };
+    }
+  }
+  return best;
+}
 
 /** 概率演变迷你折线：三条线(主/平/客),x 轴为预测序列。纯 SVG,无依赖。 */
 function ProbTimeline({ history }: { history: PredictionSnapshot[] }) {
@@ -101,10 +127,26 @@ export function ReviewCard({ match, prediction }: { match: Match; prediction?: P
     }
   }
 
-  // 全部历史里出现过的重大变更(去重展示;最新在前)。
-  const allShifts: { at: number; shift: PredictionShift }[] = (history ?? [])
-    .flatMap((s) => s.shifts.map((shift) => ({ at: s.at, shift })))
-    .reverse();
+  // 把整段历史压成「重点变化」：结论翻转链 + 最大单步概率突变。
+  // 其余因子增删/方向反转是噪声，复盘不展示（概率折线已承载整体演变）。
+  const hist = history ?? [];
+  const journey = conclusionJourney(hist);
+  const swing = biggestSwing(hist);
+  const changes: KeyChange[] = [];
+  if (journey.length > 1) {
+    changes.push({
+      tag: "结论翻转",
+      cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+      detail: journey.map((o) => SHORT_OUTCOME[o]).join(" → "),
+    });
+  }
+  if (swing && Math.abs(swing.delta) >= SWING_HEADLINE_PP) {
+    changes.push({
+      tag: "概率突变",
+      cls: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+      detail: `${swing.cn} ${swing.delta > 0 ? "+" : "-"}${Math.abs(swing.delta * 100).toFixed(0)}pp`,
+    });
+  }
 
   return (
     <div className="mt-3 pt-3 border-t border-border">
@@ -144,7 +186,7 @@ export function ReviewCard({ match, prediction }: { match: Match; prediction?: P
         </div>
       </div>
 
-      {/* 展开:概率演变 + 重大变更 */}
+      {/* 展开:概率演变 + 关键变化 */}
       <button
         onClick={toggle}
         className="mt-3 w-full text-xs text-highlight hover:text-highlight/80 transition-colors duration-150 flex items-center justify-center gap-1 min-h-[44px]"
@@ -158,7 +200,7 @@ export function ReviewCard({ match, prediction }: { match: Match; prediction?: P
         >
           <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
         </svg>
-        {open ? "收起分析过程" : "查看分析演变与重大变更"}
+        {open ? "收起" : "查看分析演变"}
       </button>
 
       {open && (
@@ -181,30 +223,22 @@ export function ReviewCard({ match, prediction }: { match: Match; prediction?: P
                 </div>
               )}
 
-              {allShifts.length > 0 ? (
+              {changes.length > 0 ? (
                 <div>
-                  <p className="text-xs font-medium text-foreground mb-2">重大归因变更（{allShifts.length}）</p>
+                  <p className="text-xs font-medium text-foreground mb-2">关键变化</p>
                   <ul className="space-y-1.5">
-                    {allShifts.map(({ at, shift }, i) => {
-                      const meta = SHIFT_META[shift.kind];
-                      const t = new Date(at);
-                      const tStr = `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-                      return (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className={`shrink-0 mt-0.5 px-1.5 py-0.5 rounded border text-[10px] font-medium ${meta.cls}`}>
-                            {meta.tag}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-xs text-foreground/90 leading-snug">{shift.note}</p>
-                            <p className="text-[10px] text-muted/70 tabular-nums">{tStr}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
+                    {changes.map((c, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${c.cls}`}>
+                          {c.tag}
+                        </span>
+                        <span className="text-xs text-foreground/90 tabular-nums">{c.detail}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : (
-                <p className="text-xs text-muted py-1">分析过程中无重大变更，预测保持稳定。</p>
+                <p className="text-xs text-muted py-1">全程预测稳定，结论保持「{outcomeCn[predicted]}」。</p>
               )}
             </>
           ) : (
