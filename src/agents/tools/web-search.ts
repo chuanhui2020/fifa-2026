@@ -55,7 +55,10 @@ export function resetSearchRecords(): void {
   searchRecords = [];
 }
 
-const SEARCH_TIMEOUT_MS = 10_000;
+// 单次 Tavily 搜索超时。失败转移最多跨 3 个号（maxAttempts = min(size, 3)），
+// 故最坏 3×15s=45s，正好落在 collector 预算（COLLECTOR_TIMEOUT_MS=45s）内不顶穿。
+// advanced 搜索常需 10~15s，10s 偏紧会误杀慢但有效的请求，放宽到 15s。
+const SEARCH_TIMEOUT_MS = 15_000;
 
 export interface WebSearchOptions {
   /** When true, skip the query-cache read (still writes fresh results). Used by admin force-refresh. */

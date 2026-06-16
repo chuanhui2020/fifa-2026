@@ -201,6 +201,9 @@ export async function reportSuccess(keyId: string): Promise<void> {
   if (!a) return;
   a.used += 1;
   a.lastUsedAt = Date.now();
+  // 成功即清除上次失败原因（如 timeout），让 lastError 只反映「仍未被成功覆盖的最近失败」，
+  // 而非陈旧的历史残留。下面达上限的分支会再写入剔除原因，覆盖此处的清空。
+  a.lastError = null;
   if (a.used >= effectiveCap()) {
     a.exhausted = true;
     a.ejectedUntil = secondOfNextMonth();
