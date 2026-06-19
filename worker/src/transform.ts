@@ -21,11 +21,14 @@ function getStageFromDate(dateStr: string): MatchStage {
   return "group";
 }
 
-function mapStatus(state: "pre" | "in" | "post"): MatchStatus {
+function mapStatus(state: string): MatchStatus {
   switch (state) {
-    case "pre": return "upcoming";
     case "in": return "live";
     case "post": return "finished";
+    // pre / postponed / canceled / suspended / 其它未知状态 → 一律按「未开赛」兜底。
+    // Match.status 只有 upcoming/live/finished 三态;无 default 时未知状态会落成 undefined,
+    // 让前端与自动 resolve 行为未定义。与 football-data.ts 的降级保持一致。
+    default: return "upcoming";
   }
 }
 
@@ -85,8 +88,11 @@ export function transformESPNEvents(events: ESPNEvent[]): Match[] {
     if (group) match.group = group;
 
     if (status === "live" || status === "finished") {
-      const homeScore = parseInt(homeComp.score || "0");
-      const awayScore = parseInt(awayComp.score || "0");
+      // 用 ?? "" 而非 || "0":区分「ESPN 没给 score」(undefined → parseInt("") → NaN → 不写)
+      // 与「真 0 分」("0" → 0 → 写)。缺数据时不写假 0-0,mergeMatches 会保留上一次真实比分,
+      // 避免把虚假 0-0 灌进 matches:all 再被自动 resolve 当成赛果。
+      const homeScore = parseInt(homeComp.score ?? "");
+      const awayScore = parseInt(awayComp.score ?? "");
       if (!isNaN(homeScore)) match.homeScore = homeScore;
       if (!isNaN(awayScore)) match.awayScore = awayScore;
     }

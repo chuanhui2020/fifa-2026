@@ -2,21 +2,33 @@ import { Env, Match } from "./types";
 import { fetchESPNMultipleDates } from "./espn";
 import { fetchFootballData } from "./football-data";
 import { transformESPNEvents, mergeMatches } from "./transform";
+import { recordHealthEvents, detectWorkerAnomalies } from "./health";
 
-function getRelevantDates(now: Date): string[] {
+function getRelevantDates(now: Date, existing: Match[]): string[] {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
+  const day = 24 * 60 * 60 * 1000;
   const today = formatter.format(now);
-  const tomorrow = formatter.format(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const tomorrow = formatter.format(new Date(now.getTime() + day));
+  const yesterday = formatter.format(new Date(now.getTime() - day));
 
   // 始终多看一天：让「明天」开球时间/对阵的修正在赛前一天就经正常刷新落地，
   // 不必等到比赛当天（如种子里 id4 这类录入错，靠系统自己的管线拉平，不用手改 KV）。
   // ESPN 免费，每轮多 1 次调用，配合既有自限流可接受。
-  return [today, tomorrow];
+  const dates = new Set([yesterday, today, tomorrow]);
+
+  // 自愈深夜场：任何在 KV 里仍标记 live 的比赛，把它的 ET 日期也重新查一遍，
+  // 直到 ESPN 给出 post 才停。否则 22:00 ET 这类晚场跨过 ET 午夜才结束，
+  // 其日期已滑出 [today, tomorrow] 窗口，会被永久冻结在 live（比分抓到了但状态翻不过来）。
+  for (const match of existing) {
+    if (match.status === "live") dates.add(match.date);
+  }
+
+  return [...dates];
 }
 
 function isWithinMatchWindow(matches: Match[], now: Date): boolean {
@@ -62,10 +74,13 @@ const worker = {
     // cron-predict 幂等且无到点比赛时极廉价(仅读 KV + 比时间戳),每 2min 调用安全。
     ctx.waitUntil(pingCronPredict(env));
 
+    // 本次运行前的更新时间:既用于自限流早返回,也用于下方 stale_data 自检
+    //(stale 必须比对「更新前」的值,故只在此读一次,贯穿复用)。
+    const prevLastUpdated = await env.FIFA_MATCHES.get("meta:lastUpdated");
+
     if (!isInTournamentWindow(now)) {
-      const lastUpdated = await env.FIFA_MATCHES.get("meta:lastUpdated");
-      if (lastUpdated) {
-        const elapsed = now.getTime() - new Date(lastUpdated).getTime();
+      if (prevLastUpdated) {
+        const elapsed = now.getTime() - new Date(prevLastUpdated).getTime();
         if (elapsed < 6 * 60 * 60 * 1000) return;
       }
     }
@@ -76,14 +91,13 @@ const worker = {
     const matchWindow = isWithinMatchWindow(existing, now);
 
     if (!matchWindow) {
-      const lastUpdated = await env.FIFA_MATCHES.get("meta:lastUpdated");
-      if (lastUpdated) {
-        const elapsed = now.getTime() - new Date(lastUpdated).getTime();
+      if (prevLastUpdated) {
+        const elapsed = now.getTime() - new Date(prevLastUpdated).getTime();
         if (elapsed < 55 * 60 * 1000) return;
       }
     }
 
-    const dates = getRelevantDates(now);
+    const dates = getRelevantDates(now, existing);
     let updates: Match[] = [];
 
     try {
@@ -95,21 +109,38 @@ const worker = {
           updates = await fetchFootballData(env.FOOTBALL_DATA_API_KEY);
         } catch {
           console.error("Both data sources failed");
+          await recordHealthEvents(env.FIFA_MATCHES, [{
+            type: "fetch_failed", severity: "error", source: "worker",
+            message: "ESPN 与 football-data 两个数据源都抓取失败,本轮跳过更新。",
+          }], now.getTime());
           return;
         }
       } else {
         console.error("ESPN failed, no fallback API key configured");
+        await recordHealthEvents(env.FIFA_MATCHES, [{
+          type: "fetch_failed", severity: "error", source: "worker",
+          message: "ESPN 抓取失败且未配置 football-data 兜底 key,本轮跳过更新。",
+        }], now.getTime());
         return;
       }
     }
 
+    let snapshot = existing;
     if (updates.length > 0) {
-      const merged = mergeMatches(existing, updates);
-      await env.FIFA_MATCHES.put("matches:all", JSON.stringify(merged));
+      snapshot = mergeMatches(existing, updates);
+      await env.FIFA_MATCHES.put("matches:all", JSON.stringify(snapshot));
     }
 
     await env.FIFA_MATCHES.put("meta:lastUpdated", now.toISOString());
     await env.FIFA_MATCHES.put("meta:activeWindow", JSON.stringify(matchWindow));
+
+    // 自检:卡死的 live(开球超 4h 仍 live)/ 比赛窗口内数据陈旧 → 记入 health:events,
+    // 供管理员页面「系统异常」查看。stale 用更新前的 prevLastUpdated 判定。
+    await recordHealthEvents(
+      env.FIFA_MATCHES,
+      detectWorkerAnomalies(snapshot, prevLastUpdated, matchWindow, now.getTime()),
+      now.getTime()
+    );
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {

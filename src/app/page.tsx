@@ -6,6 +6,7 @@ import { isConfirmedFixture } from "@/data/teams";
 import { MatchCard } from "@/components/MatchCard";
 import { FilterChips } from "@/components/FilterChips";
 import { TavilyPoolModal } from "@/components/TavilyPoolModal";
+import { HealthEventsModal } from "@/components/HealthEventsModal";
 import { ScrollDateIndicator } from "@/components/ScrollDateIndicator";
 import { VisitorStats } from "@/components/VisitorStats";
 import { convertMatchTimeToBJ } from "@/lib/timezone";
@@ -31,6 +32,8 @@ export default function SchedulePage() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
+  const [healthAlerts, setHealthAlerts] = useState(0);
 
   // 「一键预测」候选集:对阵已确定且待开赛的比赛。
   const eligible = useMemo(
@@ -42,6 +45,21 @@ export default function SchedulePage() {
     () => eligible.filter((m) => !predictions[String(m.id)]),
     [eligible, predictions]
   );
+
+  // 管理员登录后拉取近 3 天异常数(error 级),给「系统异常」按钮加红点提示。
+  useEffect(() => {
+    if (!isAdmin || !token) return;
+    let cancelled = false;
+    fetch("/api/health-events", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { events: [] }))
+      .then((d: { events?: { severity: string }[] }) => {
+        if (!cancelled) setHealthAlerts((d.events ?? []).filter((e) => e.severity === "error").length);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, token]);
 
   async function handleBatchFill() {
     await run(missing, { token, forceRefresh: false });
@@ -176,6 +194,17 @@ export default function SchedulePage() {
               >
                 号池管理
               </button>
+              <button
+                onClick={() => setHealthOpen(true)}
+                className="relative text-xs text-muted hover:text-foreground px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150"
+              >
+                系统异常
+                {healthAlerts > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-medium flex items-center justify-center">
+                    {healthAlerts}
+                  </span>
+                )}
+              </button>
               {!progress.running && progress.total > 0 && (
                 <span className="text-xs text-muted">
                   完成 {progress.done}/{progress.total}
@@ -257,6 +286,7 @@ export default function SchedulePage() {
       </footer>
 
       {isAdmin && <TavilyPoolModal open={poolOpen} onClose={() => setPoolOpen(false)} />}
+      {isAdmin && <HealthEventsModal open={healthOpen} onClose={() => setHealthOpen(false)} />}
     </div>
   );
 }

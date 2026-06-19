@@ -3,6 +3,7 @@ import { publishPredictionsBatch } from "../../src/agents/publish";
 import { appendHistory } from "../../src/agents/prediction-history";
 import { setKVStore } from "../../src/agents/cache";
 import { setCalibrationStore, resolveMatch, getAllEntries } from "../../src/agents/calibration";
+import { recordHealthEvents } from "../../src/agents/health";
 import { matches as staticMatches } from "../../src/data/matches";
 import { isConfirmedFixture } from "../../src/data/teams";
 import type { PredictionResult, PredictionShift } from "../../src/agents/types";
@@ -124,12 +125,26 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   await publishPredictionsBatch(ok);
 
+  // 预测失败留存到 health:events,供管理员页面「系统异常」查看(响应只返回当次,不持久)。
+  if (failed.length > 0) {
+    await recordHealthEvents(
+      failed.map((f) => ({
+        type: "predict_failed",
+        severity: "error" as const,
+        source: "cron-predict",
+        matchId: f.matchId,
+        message: `定时预测失败:${f.error}`,
+      })),
+      now
+    );
+  }
+
   // 自动复盘判定：扫 KV 实时赛程里已结束且有比分、且尚未 resolve 的比赛，按比分判定胜负。
   const resolved: { matchId: string; outcome: string }[] = [];
   try {
     const raw = await context.env.FIFA_MATCHES.get("matches:all");
     if (raw) {
-      const live: { id: number; status: string; homeScore?: number; awayScore?: number }[] = JSON.parse(raw);
+      const live: { id: number; status: string; stage?: string; homeScore?: number; awayScore?: number }[] = JSON.parse(raw);
       const entries = await getAllEntries();
       const resolvedSet = new Set(entries.filter((e) => e.actual !== undefined).map((e) => e.matchId));
 
@@ -138,6 +153,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         if (lm.status !== "finished") continue;
         if (lm.homeScore === undefined || lm.awayScore === undefined) continue;
         if (resolvedSet.has(id)) continue;
+
+        // 淘汰赛(stage≠group)90分钟/加时平局 = 点球决胜:ESPN 的 finished 比分不含点球结果,
+        // 无法判晋级方。若照比分会误记成 "draw",而淘汰赛预测端被强制 draw=0 → 该场 logLoss≈23,
+        // 把校准曲线彻底带歪。跳过自动 resolve,留给真实点球数据或人工 resolve-match.ts。
+        if (lm.stage && lm.stage !== "group" && lm.homeScore === lm.awayScore) continue;
 
         const outcome: "home" | "draw" | "away" =
           lm.homeScore > lm.awayScore ? "home" : lm.homeScore < lm.awayScore ? "away" : "draw";

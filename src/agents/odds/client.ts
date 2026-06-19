@@ -72,10 +72,13 @@ export async function fetchWorldCupOddsSnapshot(
   // No key: serve whatever we have (possibly stale) rather than dropping to LLM.
   if (!apiKey) return cached?.events ?? null;
 
+  // regions 单区 eu:the-odds-api 计费 = 地区数 × 市场数。eu 区含 Pinnacle 等 sharp book,
+  // 单区即 1 credit/请求(原 us,uk,eu 为 3 credits,500/月仅 ~166 次、赛事期约一周打满)。
+  // 改单区后配额 ×3(~500 次/月);devig 只需一组多家博彩公司共识,单区已足够、精度基本不变。
   const url =
     `${BASE_URL}/sports/${SPORT_KEY}/odds/` +
     `?apiKey=${encodeURIComponent(apiKey)}` +
-    `&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
+    `&regions=eu&markets=h2h&oddsFormat=decimal`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
