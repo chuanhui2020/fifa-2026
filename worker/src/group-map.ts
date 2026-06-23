@@ -50,12 +50,12 @@ export const GROUP_MAP: Record<string, string> = {
   "Portugal": "K",
   "Congo DR": "K",
   "DR Congo": "K",
-  "Ghana": "K",
-  "Panama": "K",
+  "Uzbekistan": "K",
+  "Colombia": "K",
   "England": "L",
   "Croatia": "L",
-  "Uzbekistan": "L",
-  "Colombia": "L",
+  "Ghana": "L",
+  "Panama": "L",
 };
 
 export const TEAM_NAME_NORMALIZE: Record<string, string> = {

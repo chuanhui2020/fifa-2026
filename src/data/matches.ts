@@ -50,10 +50,10 @@ export const matches: Match[] = [
   { id: 20, date: "2026-06-17", time: "00:00", homeTeam: "Austria", awayTeam: "Jordan", group: "J", stage: "group", venue: "Levi's Stadium", city: "Santa Clara", status: "upcoming" },
   // Group K
   { id: 21, date: "2026-06-17", time: "13:00", homeTeam: "Portugal", awayTeam: "Congo DR", group: "K", stage: "group", venue: "NRG Stadium", city: "Houston", status: "upcoming" },
-  { id: 22, date: "2026-06-17", time: "19:00", homeTeam: "Ghana", awayTeam: "Panama", group: "K", stage: "group", venue: "BMO Field", city: "Toronto", status: "upcoming" },
+  { id: 24, date: "2026-06-17", time: "22:00", homeTeam: "Uzbekistan", awayTeam: "Colombia", group: "K", stage: "group", venue: "Estadio Azteca", city: "Mexico City", status: "upcoming" },
   // Group L
   { id: 23, date: "2026-06-17", time: "16:00", homeTeam: "England", awayTeam: "Croatia", group: "L", stage: "group", venue: "AT&T Stadium", city: "Arlington", status: "upcoming" },
-  { id: 24, date: "2026-06-17", time: "22:00", homeTeam: "Uzbekistan", awayTeam: "Colombia", group: "L", stage: "group", venue: "Estadio Azteca", city: "Mexico City", status: "upcoming" },
+  { id: 22, date: "2026-06-17", time: "19:00", homeTeam: "Ghana", awayTeam: "Panama", group: "L", stage: "group", venue: "BMO Field", city: "Toronto", status: "upcoming" },
   // === MATCHDAY 2 (Jun 18-23) ===
   // Group A
   { id: 25, date: "2026-06-18", time: "12:00", homeTeam: "Czechia", awayTeam: "South Africa", group: "A", stage: "group", venue: "Mercedes-Benz Stadium", city: "Atlanta", status: "upcoming" },
@@ -87,10 +87,10 @@ export const matches: Match[] = [
   { id: 44, date: "2026-06-22", time: "23:00", homeTeam: "Jordan", awayTeam: "Algeria", group: "J", stage: "group", venue: "Levi's Stadium", city: "Santa Clara", status: "upcoming" },
   // Group K
   { id: 45, date: "2026-06-23", time: "13:00", homeTeam: "Portugal", awayTeam: "Uzbekistan", group: "K", stage: "group", venue: "NRG Stadium", city: "Houston", status: "upcoming" },
-  { id: 46, date: "2026-06-23", time: "16:00", homeTeam: "England", awayTeam: "Ghana", group: "L", stage: "group", venue: "Gillette Stadium", city: "Foxborough", status: "upcoming" },
+  { id: 48, date: "2026-06-23", time: "22:00", homeTeam: "Colombia", awayTeam: "Congo DR", group: "K", stage: "group", venue: "Estadio Akron", city: "Guadalajara", status: "upcoming" },
   // Group L
-  { id: 47, date: "2026-06-23", time: "19:00", homeTeam: "Panama", awayTeam: "Croatia", group: "K", stage: "group", venue: "BMO Field", city: "Toronto", status: "upcoming" },
-  { id: 48, date: "2026-06-23", time: "22:00", homeTeam: "Colombia", awayTeam: "Congo DR", group: "L", stage: "group", venue: "Estadio Akron", city: "Guadalajara", status: "upcoming" },
+  { id: 46, date: "2026-06-23", time: "16:00", homeTeam: "England", awayTeam: "Ghana", group: "L", stage: "group", venue: "Gillette Stadium", city: "Foxborough", status: "upcoming" },
+  { id: 47, date: "2026-06-23", time: "19:00", homeTeam: "Panama", awayTeam: "Croatia", group: "L", stage: "group", venue: "BMO Field", city: "Toronto", status: "upcoming" },
   // === MATCHDAY 3 (Jun 24-27) ===
   // Group A
   { id: 49, date: "2026-06-24", time: "21:00", homeTeam: "Czechia", awayTeam: "Mexico", group: "A", stage: "group", venue: "Estadio Azteca", city: "Mexico City", status: "upcoming" },
@@ -123,11 +123,11 @@ export const matches: Match[] = [
   { id: 67, date: "2026-06-27", time: "22:00", homeTeam: "Algeria", awayTeam: "Austria", group: "J", stage: "group", venue: "GEHA Field at Arrowhead Stadium", city: "Kansas City", status: "upcoming" },
   { id: 68, date: "2026-06-27", time: "22:00", homeTeam: "Jordan", awayTeam: "Argentina", group: "J", stage: "group", venue: "AT&T Stadium", city: "Arlington", status: "upcoming" },
   // Group K
-  { id: 69, date: "2026-06-27", time: "17:00", homeTeam: "Croatia", awayTeam: "Ghana", group: "K", stage: "group", venue: "Lincoln Financial Field", city: "Philadelphia", status: "upcoming" },
-  { id: 70, date: "2026-06-27", time: "17:00", homeTeam: "Panama", awayTeam: "England", group: "K", stage: "group", venue: "MetLife Stadium", city: "East Rutherford", status: "upcoming" },
+  { id: 71, date: "2026-06-27", time: "19:30", homeTeam: "Colombia", awayTeam: "Portugal", group: "K", stage: "group", venue: "Hard Rock Stadium", city: "Miami Gardens", status: "upcoming" },
+  { id: 72, date: "2026-06-27", time: "19:30", homeTeam: "Congo DR", awayTeam: "Uzbekistan", group: "K", stage: "group", venue: "Mercedes-Benz Stadium", city: "Atlanta", status: "upcoming" },
   // Group L
-  { id: 71, date: "2026-06-27", time: "19:30", homeTeam: "Colombia", awayTeam: "Portugal", group: "L", stage: "group", venue: "Hard Rock Stadium", city: "Miami Gardens", status: "upcoming" },
-  { id: 72, date: "2026-06-27", time: "19:30", homeTeam: "Congo DR", awayTeam: "Uzbekistan", group: "L", stage: "group", venue: "Mercedes-Benz Stadium", city: "Atlanta", status: "upcoming" },
+  { id: 69, date: "2026-06-27", time: "17:00", homeTeam: "Croatia", awayTeam: "Ghana", group: "L", stage: "group", venue: "Lincoln Financial Field", city: "Philadelphia", status: "upcoming" },
+  { id: 70, date: "2026-06-27", time: "17:00", homeTeam: "Panama", awayTeam: "England", group: "L", stage: "group", venue: "MetLife Stadium", city: "East Rutherford", status: "upcoming" },
   // === ROUND OF 32 (Jun 28 - Jul 3) ===
   { id: 73, date: "2026-06-28", time: "15:00", homeTeam: "Group A 2nd", awayTeam: "Group B 2nd", stage: "round32", venue: "SoFi Stadium", city: "Inglewood", status: "upcoming" },
   { id: 74, date: "2026-06-29", time: "13:00", homeTeam: "Group C Winner", awayTeam: "Group F 2nd", stage: "round32", venue: "NRG Stadium", city: "Houston", status: "upcoming" },
