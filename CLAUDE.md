@@ -39,6 +39,20 @@ FIFA 2026 世界杯赛程展示网站，供团队直观查看比赛信息。后�
 - [ ] 收藏/关注比赛功能
 - [ ] 分享功能（微信分享卡片 meta）
 
+## 淘汰赛对阵更新机制
+
+**问题**：32强等淘汰赛的对阵在小组赛进行期间为占位符（如 "Group A Winner"），需要等小组赛结束后才能确定。
+
+**解决方案**：
+1. **ESPN API 自动更新**：ESPN 会在小组赛结束后自动返回真实对阵（如 "Brazil vs Japan"）
+2. **Worker 自动合并**：`transform.ts` 的 `mergeMatches` 通过 `stage + date + venue` 匹配，自动用真实队名覆盖占位符
+3. **手动同步按钮**：管理员界面提供"同步32强对阵"按钮（`/api/sync-knockout`），可手动触发从 ESPN 拉取并更新
+4. **批量预测**：对阵确认后，使用"一键预测"批量生成预测（`/api/predict-batch`）
+
+**API 端点**：
+- `POST /api/sync-knockout`：从 ESPN 拉取未来7天赛程，更新淘汰赛对阵到 KV
+- `POST /api/predict-batch`：批量预测指定阶段的已确定对阵（默认 round32，最多10场）
+
 ## 数据来源
 
 - 赛程数据来自 ESPN (espn.com/soccer/schedule)

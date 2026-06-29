@@ -72,6 +72,29 @@ export default function SchedulePage() {
     await refetch();
   }
 
+  const [syncing, setSyncing] = useState(false);
+  async function handleSyncKnockout() {
+    if (!token) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/sync-knockout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`同步成功！更新了 ${data.knockoutUpdated} 场淘汰赛对阵`);
+        window.location.reload(); // 刷新页面以显示新对阵
+      } else {
+        alert(`同步失败：${data.error}`);
+      }
+    } catch (err) {
+      alert(`同步失败：${err instanceof Error ? err.message : "未知错误"}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
       if (selectedGroup && match.group !== selectedGroup) return false;
@@ -187,6 +210,13 @@ export default function SchedulePage() {
                 className="text-xs text-muted hover:text-foreground px-3 min-h-[44px] py-2 rounded-full border border-border hover:border-highlight/50 active:bg-card-hover transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 强制全部重测（{eligible.length}）
+              </button>
+              <button
+                onClick={handleSyncKnockout}
+                disabled={syncing}
+                className="text-xs font-medium px-3 min-h-[44px] py-2 rounded-full bg-green-500/10 text-green-500 border border-green-500/30 hover:bg-green-500/20 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncing ? "同步中..." : "同步32强对阵"}
               </button>
               <button
                 onClick={() => setPoolOpen(true)}
