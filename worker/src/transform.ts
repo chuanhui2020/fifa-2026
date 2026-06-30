@@ -1,6 +1,6 @@
 import { Match, MatchStage, MatchStatus } from "./types";
 import { ESPNEvent } from "./espn";
-import { getGroup, normalizeTeamName } from "./group-map";
+import { getGroup, normalizeTeamName, normalizeVenueName } from "./group-map";
 
 const STAGE_DATE_RANGES: { start: string; end: string; stage: MatchStage }[] = [
   { start: "2026-06-11", end: "2026-06-27", stage: "group" },
@@ -78,7 +78,7 @@ export function transformESPNEvents(events: ESPNEvent[]): Match[] {
       homeTeam,
       awayTeam,
       stage,
-      venue: comp.venue?.fullName || "",
+      venue: normalizeVenueName(comp.venue?.fullName || ""),
       // ESPN 偶尔把州/省塞进 city（如 "Inglewood, California"）；只取主体，
       // 与静态赛程的 city 命名（"Inglewood"）一致，前端查表才能映射成中文。
       city: (comp.venue?.address?.city || "").split(",")[0].trim(),
@@ -143,8 +143,12 @@ export function mergeMatches(existing: Match[], updates: Match[]): Match[] {
     }
 
     if (idx < 0) {
+      // venue 两侧都归一化后比较，容忍 KV 里残留的旧冠名（如 "Estadio Banorte"）
+      // 与归一化后 update（"Estadio Azteca"）对不上。update.venue 已在 transform 阶段
+      // 归一化，这里对 merged 侧再归一化一次即可双向兜底。
+      const uv = normalizeVenueName(update.venue);
       idx = merged.findIndex(
-        (m) => m.stage === update.stage && m.date === update.date && m.venue === update.venue
+        (m) => m.stage === update.stage && m.date === update.date && normalizeVenueName(m.venue) === uv
       );
     }
 
