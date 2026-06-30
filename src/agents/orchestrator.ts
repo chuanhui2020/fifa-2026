@@ -52,7 +52,12 @@ export async function predict(
 
   const matchData = lookupMatch(matchId);
   if (matchData) {
-    if (matchData.homeTeam !== homeTeam || matchData.awayTeam !== awayTeam) {
+    // 队名一致性校验仅在静态赛程的对阵已是真实队名时才有意义。
+    // 淘汰赛比赛在静态赛程里是占位符（"Group E 2nd" 等），对阵确认后 KV/前端
+    // 传入的是真实队名（"Ivory Coast"），二者本就不会相等——此时跳过校验，
+    // 以传入的真实队名为准（date/venue/stage 等 context 仍按场馆槽位取自静态赛程，准确）。
+    const staticFixtureResolved = isConfirmedFixture(matchData.homeTeam, matchData.awayTeam);
+    if (staticFixtureResolved && (matchData.homeTeam !== homeTeam || matchData.awayTeam !== awayTeam)) {
       throw new Error(
         `Team mismatch: matchId ${matchId} is ${matchData.homeTeam} vs ${matchData.awayTeam}, ` +
         `but received ${homeTeam} vs ${awayTeam}`

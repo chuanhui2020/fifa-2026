@@ -78,7 +78,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   const matchData = lookupMatch(matchId);
-  if (matchData && (matchData.homeTeam !== homeTeam || matchData.awayTeam !== awayTeam)) {
+  // 仅当静态赛程对阵已是真实队名时才校验。淘汰赛占位符（"Group E 2nd"）确认后，
+  // 传入的是真实队名，二者本就不等——此时跳过，与 orchestrator.predict 保持一致。
+  if (
+    matchData &&
+    isConfirmedFixture(matchData.homeTeam, matchData.awayTeam) &&
+    (matchData.homeTeam !== homeTeam || matchData.awayTeam !== awayTeam)
+  ) {
     return new Response(
       JSON.stringify({ error: `Team mismatch for matchId ${matchId}` }),
       { status: 400, headers: { "Content-Type": "application/json" } }
