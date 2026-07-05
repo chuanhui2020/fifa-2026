@@ -5,7 +5,7 @@
  */
 
 import { fetchESPNMultipleDates } from "../../worker/src/espn";
-import { transformESPNEvents, mergeMatches } from "../../worker/src/transform";
+import { transformESPNEvents, mergeMatches, reconcileKnockoutSlots } from "../../worker/src/transform";
 import { Match } from "../../worker/src/types";
 
 interface Env {
@@ -61,8 +61,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const existingData = await context.env.FIFA_MATCHES.get("matches:all");
     const existing: Match[] = existingData ? JSON.parse(existingData) : [];
 
-    // 合并更新
-    const merged = mergeMatches(existing, updates);
+    // 合并更新 + 按固定槽位对账淘汰赛（收敛重复行 / 复位漂移行）
+    const merged = reconcileKnockoutSlots(mergeMatches(existing, updates));
 
     // 写回 KV
     await context.env.FIFA_MATCHES.put("matches:all", JSON.stringify(merged));

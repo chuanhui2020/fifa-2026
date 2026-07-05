@@ -1,7 +1,7 @@
 import { Env, Match } from "./types";
 import { fetchESPNMultipleDates } from "./espn";
 import { fetchFootballData } from "./football-data";
-import { transformESPNEvents, mergeMatches } from "./transform";
+import { transformESPNEvents, mergeMatches, reconcileKnockoutSlots } from "./transform";
 import { recordHealthEvents, detectWorkerAnomalies } from "./health";
 
 function getRelevantDates(now: Date, existing: Match[]): string[] {
@@ -127,7 +127,8 @@ const worker = {
 
     let snapshot = existing;
     if (updates.length > 0) {
-      snapshot = mergeMatches(existing, updates);
+      // 先合并 ESPN 更新，再按固定槽位对账淘汰赛（收敛重复行 + 复位被拖走的种子行，幂等自愈）。
+      snapshot = reconcileKnockoutSlots(mergeMatches(existing, updates));
       await env.FIFA_MATCHES.put("matches:all", JSON.stringify(snapshot));
     }
 

@@ -1,6 +1,7 @@
 import { Match, MatchStage, MatchStatus } from "./types";
 import { ESPNEvent } from "./espn";
-import { getGroup, normalizeTeamName, normalizeVenueName } from "./group-map";
+import { getGroup, normalizeTeamName, normalizeVenueName, isRealTeamName } from "./group-map";
+import { KNOCKOUT_SLOTS } from "./knockout-slots";
 
 const STAGE_DATE_RANGES: { start: string; end: string; stage: MatchStage }[] = [
   { start: "2026-06-11", end: "2026-06-27", stage: "group" },
@@ -118,19 +119,37 @@ function pairKey(home: string, away: string): string {
   return `${teamKey(home)}|${teamKey(away)}`;
 }
 
+/** 种子稳定 id 上限：静态赛程 id 为 1..104；ESPN 事件号是 6 位（≥760000）。 */
+const SEED_ID_MAX = 1000;
+
 /**
  * 把 ESPN 抓到的 updates 合并进 existing（KV 现有全量）。匹配优先级：
  *   1) espnId 精确 —— 一旦某行带过 espnId，后续最稳，日期/队名怎么变都跟得上。
  *   2) 主客队对（日期无关）—— 小组赛即使官方调了开球时间/日期也能命中并改正。
  *   3) stage+date+venue 兜底 —— 淘汰赛占位对阵（"A组第2 vs B组第2"）按固定的
  *      日期+场馆槽位原地更新成真实队名，避免重复行。
- *   4) 都没命中 —— 视为种子里缺的真实场次，直接新增，不再静默丢弃。
  * 命中后保留站内稳定 id，其余字段（date/time/status/score/venue/espnId）以 ESPN 为准。
+ *
+ * 淘汰赛特有的两条护栏（否则占位符会污染种子槽位）：
+ *   - 真实队名门槛：ESPN 尚未定队的淘汰赛 provisional 场次（队名仍是 "Round of 16 X
+ *     Winner" 等占位）一律跳过。它们不带任何种子里没有的信息，却会因 pairKey 把所有占位名
+ *     压成同一键、或 espnId 绑定后跟随 ESPN 的日期/场馆漂移，把种子行「拖走」
+ *     （如 QF id97 被搬离 7/9 Gillette 撞进 7/10 SoFi）。
+ *   - 淘汰赛不新增行：32 个淘汰赛槽位在种子里已全量存在，ESPN 不应引入新场次；没命中就
+ *     跳过，避免像西雅图 id94/id760505 那样凭空多出一条重复。只有小组赛允许新增。
+ * 收尾再跑一次 dedupeKnockoutSlots，回收历史遗留的 ESPN 重复行。
  */
 export function mergeMatches(existing: Match[], updates: Match[]): Match[] {
   const merged = [...existing];
 
   for (const update of updates) {
+    const isKnockout = update.stage !== "group";
+
+    // 真实队名门槛：占位淘汰赛 update 直接丢弃，不绑定、不新增、不修改。
+    if (isKnockout && !(isRealTeamName(update.homeTeam) && isRealTeamName(update.awayTeam))) {
+      continue;
+    }
+
     let idx = -1;
 
     if (update.espnId) {
@@ -154,10 +173,102 @@ export function mergeMatches(existing: Match[], updates: Match[]): Match[] {
 
     if (idx >= 0) {
       merged[idx] = { ...merged[idx], ...update, id: merged[idx].id };
-    } else {
+    } else if (!isKnockout) {
+      // 淘汰赛没命中不新增（种子已全量）；仅小组赛容许新增缺失的真实场次。
       merged.push(update);
     }
   }
 
-  return merged;
+  return dedupeKnockoutSlots(merged);
+}
+
+/**
+ * 收尾去重：同一淘汰赛槽位（stage + date + 归一化 venue）里若同时存在种子稳定行
+ * （id < SEED_ID_MAX）与 ESPN 另建的重复行（id ≥ SEED_ID_MAX，6 位事件号），
+ * 把真实字段（队名/status/score/espnId）并回种子行、丢弃 ESPN 重复行，保留种子稳定 id。
+ * 只回收「非种子 id」的重复；两条种子行撞同一槽位（错绑，如 QF id97/id98）不在此收敛，
+ * 交由按种子重建的对账端点处理，以免误删一场合法比赛。
+ */
+function dedupeKnockoutSlots(matches: Match[]): Match[] {
+  const slotKey = (m: Match) => `${m.stage}|${m.date}|${normalizeVenueName(m.venue)}`;
+  const bySlot = new Map<string, Match[]>();
+  for (const m of matches) {
+    const k = slotKey(m);
+    const arr = bySlot.get(k);
+    if (arr) arr.push(m);
+    else bySlot.set(k, [m]);
+  }
+
+  const dropIds = new Set<number>();
+  const patch = new Map<number, Match>();
+  for (const rows of bySlot.values()) {
+    if (rows.length < 2 || rows[0].stage === "group") continue;
+    const seedRows = rows.filter((m) => m.id < SEED_ID_MAX);
+    const espnDups = rows.filter((m) => m.id >= SEED_ID_MAX);
+    if (seedRows.length !== 1 || espnDups.length === 0) continue;
+    const seedRow = seedRows[0];
+    // 优先取带真实队名的 ESPN 行做数据源
+    const src =
+      espnDups.find((m) => isRealTeamName(m.homeTeam) && isRealTeamName(m.awayTeam)) ?? espnDups[0];
+    patch.set(seedRow.id, {
+      ...seedRow,
+      homeTeam: src.homeTeam,
+      awayTeam: src.awayTeam,
+      espnId: src.espnId,
+      status: src.status,
+      ...(src.homeScore !== undefined ? { homeScore: src.homeScore } : {}),
+      ...(src.awayScore !== undefined ? { awayScore: src.awayScore } : {}),
+    });
+    for (const d of espnDups) dropIds.add(d.id);
+  }
+
+  if (dropIds.size === 0 && patch.size === 0) return matches;
+  return matches.filter((m) => !dropIds.has(m.id)).map((m) => patch.get(m.id) ?? m);
+}
+
+/**
+ * 按固定槽位对账淘汰赛，以 KNOCKOUT_SLOTS（赛前即固定的 32 个 stage+date+venue+id）为权威，
+ * 重建全部淘汰赛行；小组赛行原样保留。每个槽位取「同 id 或落在该 stage+date+归一化 venue」
+ * 的行中带真实队名者，叠加队名/status/score/espnId；无真实对阵则保留占位名。
+ * 由此一次性收敛两类脏数据并自愈：
+ *   - ESPN 另建的重复行（非种子 id，不在槽位表中 → 自然不产出，等于删除）；
+ *   - 被 provisional 事件用 espnId 拖走的种子行（如 QF id97 漂到别的场馆 → 按 id 命中后复位）。
+ * 幂等：KV 干净后再次运行产出一致，可安全地在每次 cron 同步后执行。
+ */
+export function reconcileKnockoutSlots(matches: Match[]): Match[] {
+  const groupRows = matches.filter((m) => m.stage === "group");
+  const koRows = matches.filter((m) => m.stage !== "group");
+  const nv = (v: string) => normalizeVenueName(v || "");
+
+  const rebuilt: Match[] = KNOCKOUT_SLOTS.map((slot) => {
+    const candidates = koRows.filter(
+      (m) =>
+        m.id === slot.id ||
+        (m.stage === slot.stage && m.date === slot.date && nv(m.venue) === nv(slot.venue))
+    );
+    const real = candidates.find((c) => isRealTeamName(c.homeTeam) && isRealTeamName(c.awayTeam));
+
+    const out: Match = {
+      id: slot.id,
+      date: slot.date,
+      time: slot.time,
+      homeTeam: slot.homeTeam,
+      awayTeam: slot.awayTeam,
+      stage: slot.stage,
+      venue: slot.venue,
+      city: slot.city,
+      status: "upcoming",
+    };
+    if (real) {
+      out.homeTeam = real.homeTeam;
+      out.awayTeam = real.awayTeam;
+      out.status = real.status;
+      if (real.espnId) out.espnId = real.espnId;
+      if (real.homeScore !== undefined) out.homeScore = real.homeScore;
+      if (real.awayScore !== undefined) out.awayScore = real.awayScore;
+    }
+    return out;
+  });
+
+  return [...groupRows, ...rebuilt];
 }
